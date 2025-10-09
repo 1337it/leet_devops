@@ -1,0 +1,11 @@
+{
+  "doctype":"DocType","name":"LD Repository","module":"Leet DevOps",
+  "autoname":"field:repo_full_name",
+  "fields":[
+    {"fieldname":"repo_full_name","label":"Repo (owner/name)","fieldtype":"Data","reqd":1},
+    {"fieldname":"default_branch","label":"Default Branch","fieldtype":"Data","default":"develop"},
+    {"fieldname":"production_branch","label":"Production Branch","fieldtype":"Data","default":"main"},
+    {"fieldname":"deploy_tag_pattern","label":"Deploy Tag Pattern","fieldtype":"Data","default":"v*.*.*"}
+  ],
+  "permissions":[{"role":"System Manager"},{"role":"DevOps Manager"}]
+}
