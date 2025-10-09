@@ -83,27 +83,3 @@
  "states": [],
  "track_changes": 1
 }
-```
-
-### leet_devops/leet_devops/doctype/dev_chat_session/dev_chat_session.py
-```python
-import frappe
-from frappe.model.document import Document
-
-class DevChatSession(Document):
-    def before_save(self):
-        if not self.created_by:
-            self.created_by = frappe.session.user
-```
-
-### leet_devops/leet_devops/doctype/dev_chat_session/dev_chat_session.js
-```javascript
-frappe.ui.form.on('Dev Chat Session', {
-    refresh: function(frm) {
-        if (!frm.is_new()) {
-            frm.add_custom_button(__('Open Chat'), function() {
-                frappe.set_route('dev-chat', frm.doc.name);
-            });
-        }
-    }
-});
