@@ -1,1 +1,18 @@
-
+include MANIFEST.in
+include requirements.txt
+include *.json
+include *.md
+include *.py
+include *.txt
+recursive-include leet_devops *.css
+recursive-include leet_devops *.csv
+recursive-include leet_devops *.html
+recursive-include leet_devops *.ico
+recursive-include leet_devops *.js
+recursive-include leet_devops *.json
+recursive-include leet_devops *.md
+recursive-include leet_devops *.png
+recursive-include leet_devops *.py
+recursive-include leet_devops *.svg
+recursive-include leet_devops *.txt
+recursive-exclude leet_devops *.pyc
