@@ -1,0 +1,15 @@
+{
+  "doctype":"DocType","name":"LD Environment","module":"Leet DevOps",
+  "autoname":"format:{env_name}-{site}",
+  "fields":[
+    {"fieldname":"env_name","label":"Environment","fieldtype":"Select","options":"staging\nproduction","reqd":1},
+    {"fieldname":"host","label":"Host","fieldtype":"Data","reqd":1},
+    {"fieldname":"port","label":"Port","fieldtype":"Int","default":22},
+    {"fieldname":"username","label":"Username","fieldtype":"Data","reqd":1},
+    {"fieldname":"private_key","label":"Private Key (PEM)","fieldtype":"Password","reqd":1},
+    {"fieldname":"bench_dir","label":"Bench Dir","fieldtype":"Data","default":"/home/bench/frappe-bench"},
+    {"fieldname":"site","label":"Site","fieldtype":"Data","reqd":1},
+    {"fieldname":"app_name","label":"App Name","fieldtype":"Data","reqd":1}
+  ],
+  "permissions":[{"role":"System Manager"},{"role":"DevOps Manager"}]
+}
