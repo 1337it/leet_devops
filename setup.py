@@ -6,12 +6,11 @@ with open("requirements.txt") as f:
 setup(
     name="leet_devops",
     version="0.0.1",
-    description="Leet DevOps — GitHub + SSH Deploys + OpenAI Change Chat for Frappe",
-    author="Aman Yousaf / Leet IT Solutions",
-    author_email="dev@leetitsolutions.com",
-    license="MIT",
+    description="AI-powered development assistant for Frappe",
+    author="Your Name",
+    author_email="your.email@example.com",
     packages=find_packages(),
     zip_safe=False,
     include_package_data=True,
-    install_requires=install_requires,
+    install_requires=install_requires
 )
