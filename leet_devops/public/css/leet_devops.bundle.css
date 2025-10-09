@@ -1,0 +1,98 @@
+/* ============================================================
+   Leet DevOps – Main Stylesheet
+   Author: Leet IT Solutions (Aman Yousaf)
+   Purpose: Styling for DevOps Dashboard & AI Change Chat
+   ============================================================ */
+
+:root {
+  --leet-primary: #007bff;
+  --leet-secondary: #6c757d;
+  --leet-bg: #f9f9f9;
+  --leet-dark: #222;
+  --leet-success: #28a745;
+  --leet-danger: #dc3545;
+}
+
+/* General container styling */
+.container {
+  background: var(--leet-bg);
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+/* Headings */
+h2, h5 {
+  color: var(--leet-dark);
+  font-weight: 600;
+}
+
+/* Cards */
+.card {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.card-title {
+  color: var(--leet-primary);
+  margin-bottom: 0.5rem;
+}
+
+/* Buttons */
+.btn-primary {
+  background-color: var(--leet-primary);
+  border: none;
+}
+.btn-success {
+  background-color: var(--leet-success);
+  border: none;
+}
+.btn-primary:hover,
+.btn-success:hover {
+  opacity: 0.9;
+}
+
+/* Output console box */
+pre#output {
+  font-family: monospace;
+  background: #111;
+  color: #0f0;
+  border-radius: 6px;
+  padding: 1rem;
+  line-height: 1.4;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+/* Form elements */
+input.form-control,
+textarea.form-control {
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  margin-bottom: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  transition: border-color 0.2s ease;
+}
+input.form-control:focus,
+textarea.form-control:focus {
+  border-color: var(--leet-primary);
+  outline: none;
+}
+
+/* Smooth fade-in animation */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.container, .card {
+  animation: fadeIn 0.4s ease;
+}
+
+/* Footer / branding */
+footer {
+  text-align: center;
+  margin-top: 2rem;
+  color: #888;
+  font-size: 0.85rem;
+}
