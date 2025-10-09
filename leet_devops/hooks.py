@@ -23,6 +23,16 @@ app_include_js = "/assets/leet_devops/js/leet_devops.js"
 # Website user home page
 # home_page = "login"
 
+# Web pages
+# ----------
+web_include_js = "/assets/leet_devops/js/dev_chat.js"
+web_include_css = "/assets/leet_devops/css/leet_devops.css"
+
+# Standard Pages (for user access)
+standard_portal_menu_items = [
+    {"title": "Dev Chat", "route": "/dev-chat", "role": "System Manager"}
+]
+
 # Generators
 # ----------
 # automatically create page for each record of this doctype
