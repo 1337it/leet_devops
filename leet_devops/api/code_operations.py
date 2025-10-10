@@ -1,6 +1,7 @@
 import frappe
 import os
 import difflib
+import subprocess
 from pathlib import Path
 
 @frappe.whitelist()
@@ -48,9 +49,31 @@ def apply_code_change(change_name):
         change.applied_by = frappe.session.user
         change.save()
         
+        # Check if this is a DocType change and needs migration
+        needs_migration = check_if_needs_migration(change.file_path)
+        
+        if needs_migration:
+            # Run migration
+            migration_result = run_migration()
+            
+            if migration_result['success']:
+                return {
+                    'success': True,
+                    'message': f'Change applied successfully to {change.file_path}. Database migrated.',
+                    'migrated': True
+                }
+            else:
+                return {
+                    'success': True,
+                    'message': f'Change applied to {change.file_path} but migration failed: {migration_result.get("error")}',
+                    'migrated': False,
+                    'migration_error': migration_result.get('error')
+                }
+        
         return {
             'success': True,
-            'message': f'Change applied successfully to {change.file_path}'
+            'message': f'Change applied successfully to {change.file_path}',
+            'migrated': False
         }
         
     except Exception as e:
@@ -96,13 +119,80 @@ def revert_code_change(change_name):
         change.status = 'Reverted'
         change.save()
         
+        # Check if needs migration
+        needs_migration = check_if_needs_migration(change.file_path)
+        
+        if needs_migration:
+            migration_result = run_migration()
+            
+            if migration_result['success']:
+                return {
+                    'success': True,
+                    'message': f'Change reverted successfully for {change.file_path}. Database migrated.',
+                    'migrated': True
+                }
+        
         return {
             'success': True,
-            'message': f'Change reverted successfully for {change.file_path}'
+            'message': f'Change reverted successfully for {change.file_path}',
+            'migrated': False
         }
         
     except Exception as e:
         frappe.log_error(f"Error reverting code change: {str(e)}")
+        return {
+            'success': False,
+            'error': str(e)
+        }
+
+def check_if_needs_migration(file_path):
+    """Check if the file change requires database migration"""
+    # DocType JSON files need migration
+    if file_path.endswith('.json') and '/doctype/' in file_path:
+        return True
+    
+    # Page JSON files might need migration
+    if file_path.endswith('.json') and '/page/' in file_path:
+        return True
+    
+    # Report JSON files might need migration
+    if file_path.endswith('.json') and '/report/' in file_path:
+        return True
+    
+    return False
+
+def run_migration():
+    """Run bench migrate for the current site"""
+    try:
+        site = frappe.local.site
+        bench_path = frappe.utils.get_bench_path()
+        
+        # Run migrate command
+        result = subprocess.run(
+            ['bench', '--site', site, 'migrate'],
+            cwd=bench_path,
+            capture_output=True,
+            text=True,
+            timeout=300  # 5 minute timeout
+        )
+        
+        if result.returncode == 0:
+            return {
+                'success': True,
+                'output': result.stdout
+            }
+        else:
+            return {
+                'success': False,
+                'error': result.stderr or result.stdout
+            }
+            
+    except subprocess.TimeoutExpired:
+        return {
+            'success': False,
+            'error': 'Migration timed out after 5 minutes'
+        }
+    except Exception as e:
         return {
             'success': False,
             'error': str(e)
@@ -193,6 +283,70 @@ def list_app_files(app_name):
             'files': files
         }
     except Exception as e:
+        return {
+            'success': False,
+            'error': str(e)
+        }
+
+@frappe.whitelist()
+def apply_all_pending_changes(session_id=None):
+    """Apply all pending code changes, optionally filtered by session"""
+    try:
+        filters = {'status': 'Pending'}
+        
+        if session_id:
+            # Get all messages from the session
+            messages = frappe.get_all('Dev Chat Message', 
+                filters={'session': session_id},
+                pluck='name'
+            )
+            
+            if not messages:
+                return {
+                    'success': True,
+                    'message': 'No changes found for this session',
+                    'applied': 0
+                }
+            
+            filters['parent'] = ['in', messages]
+        
+        changes = frappe.get_all('Code Change', filters=filters, pluck='name')
+        
+        if not changes:
+            return {
+                'success': True,
+                'message': 'No pending changes to apply',
+                'applied': 0
+            }
+        
+        applied = 0
+        failed = 0
+        errors = []
+        
+        for change_name in changes:
+            result = apply_code_change(change_name)
+            if result.get('success'):
+                applied += 1
+            else:
+                failed += 1
+                errors.append(f"{change_name}: {result.get('error')}")
+        
+        # Run migration once at the end if any changes were applied
+        migration_result = None
+        if applied > 0:
+            migration_result = run_migration()
+        
+        return {
+            'success': True,
+            'message': f'Applied {applied} changes, {failed} failed',
+            'applied': applied,
+            'failed': failed,
+            'errors': errors,
+            'migrated': migration_result.get('success') if migration_result else False
+        }
+        
+    except Exception as e:
+        frappe.log_error(f"Error applying changes: {str(e)}")
         return {
             'success': False,
             'error': str(e)

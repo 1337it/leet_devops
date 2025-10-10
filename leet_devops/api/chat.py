@@ -7,12 +7,13 @@ import json
 def send_message(session_id, message):
     """Send a message to Claude and get a response"""
     try:
-        # Get API key from site config
-        api_key = frappe.conf.get('claude_api_key')
-        if not api_key:
+        # Get settings
+        settings = frappe.get_single('Leet DevOps Settings')
+        
+        if not settings.claude_api_key:
             return {
                 'success': False,
-                'error': 'Claude API key not configured. Please add claude_api_key to site_config.json'
+                'error': 'Claude API key not configured. Please configure in Leet DevOps Settings.'
             }
         
         # Create user message
@@ -28,15 +29,17 @@ def send_message(session_id, message):
         history = get_conversation_history(session_id)
         
         # Initialize Claude client
+        api_key = settings.get_password('claude_api_key')
         client = Anthropic(api_key=api_key)
         
         # Create system prompt
-        system_prompt = get_system_prompt()
+        system_prompt = get_system_prompt(settings)
         
         # Call Claude API
         response = client.messages.create(
-            model="claude-sonnet-4-5-20250929",
-            max_tokens=8096,
+            model=settings.claude_model or "claude-sonnet-4-5-20250929",
+            max_tokens=settings.max_tokens or 8096,
+            temperature=settings.temperature or 0.7,
             system=system_prompt,
             messages=history
         )
@@ -45,7 +48,7 @@ def send_message(session_id, message):
         assistant_message = response.content[0].text
         
         # Parse code changes if any
-        code_changes = extract_code_changes(assistant_message)
+        code_changes = extract_code_changes(assistant_message, settings)
         
         # Save assistant message
         assistant_doc = frappe.get_doc({
@@ -94,15 +97,17 @@ def get_conversation_history(session_id):
     
     return history
 
-def get_system_prompt():
+def get_system_prompt(settings):
     """Get the system prompt for Claude"""
     bench_path = frappe.utils.get_bench_path()
+    target_app = settings.target_app or 'custom_app'
     
     return f"""You are an expert Frappe/ERPNext developer assistant. You help users develop and customize their Frappe applications.
 
 Current Context:
 - Bench Path: {bench_path}
-- You can create, modify, and delete files in the custom apps
+- Target App: {target_app}
+- You can create, modify, and delete files in the target app
 - You have access to Frappe framework documentation and best practices
 
 Your responsibilities:
@@ -110,7 +115,7 @@ Your responsibilities:
 2. Provide code that follows Frappe best practices
 3. When providing code changes, format them as:
    ```change
-   file_path: path/to/file.py
+   file_path: apps/{target_app}/path/to/file.py
    change_type: create|modify|delete
    ---
    [code content here]
@@ -125,6 +130,7 @@ Guidelines:
 - Use proper error handling
 - Add appropriate permissions and validations
 - Test your suggestions mentally before providing them
+- Place all code in the {target_app} app directory structure
 
 When users ask you to make changes:
 1. First explain what you'll do
@@ -133,9 +139,10 @@ When users ask you to make changes:
 4. Mention any dependencies or requirements
 """
 
-def extract_code_changes(message):
+def extract_code_changes(message, settings):
     """Extract code changes from assistant message"""
     changes = []
+    target_app = settings.target_app or 'custom_app'
     
     # Look for code blocks with change markers
     import re
@@ -147,6 +154,10 @@ def extract_code_changes(message):
         change_type = match.group(2).strip().capitalize()
         code = match.group(3).strip()
         
+        # Ensure file path uses the target app
+        if not file_path.startswith('apps/'):
+            file_path = f'apps/{target_app}/{file_path}'
+        
         changes.append({
             'file_path': file_path,
             'change_type': change_type,
@@ -157,24 +168,44 @@ def extract_code_changes(message):
     return changes
 
 @frappe.whitelist()
+def test_api_connection(api_key, model):
+    """Test Claude API connection"""
+    try:
+        client = Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model=model,
+            max_tokens=100,
+            messages=[{"role": "user", "content": "Say hello"}]
+        )
+        
+        return {
+            'success': True,
+            'message': 'Connection successful'
+        }
+    except Exception as e:
+        return {
+            'success': False,
+            'error': str(e)
+        }
+
+@frappe.whitelist()
 def get_messages(session_id):
     """Get all messages for a session"""
     messages = frappe.get_all(
         'Dev Chat Message',
         filters={'session': session_id},
-        fields=['name', 'message_type', 'message', 'timestamp', 'code_changes'],
+        fields=['name', 'message_type', 'message', 'timestamp'],
         order_by='timestamp asc'
     )
     
-    # Get code changes for each message
+    # Get code changes for each message separately
     for msg in messages:
-        if msg.get('code_changes'):
-            changes = frappe.get_all(
-                'Code Change',
-                filters={'parent': msg.name},
-                fields=['name', 'file_path', 'change_type', 'status', 'modified_code']
-            )
-            msg['code_changes'] = changes
+        changes = frappe.get_all(
+            'Code Change',
+            filters={'parent': msg['name']},
+            fields=['name', 'file_path', 'change_type', 'status', 'modified_code']
+        )
+        msg['code_changes'] = changes
     
     return messages
 
