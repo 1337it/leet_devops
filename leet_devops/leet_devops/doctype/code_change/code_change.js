@@ -5,6 +5,11 @@ frappe.ui.form.on('Code Change', {
                 frappe.confirm(
                     'Are you sure you want to apply this change? Make sure you have a backup.',
                     () => {
+                        frappe.show_alert({
+                            message: __('Applying changes...'),
+                            indicator: 'blue'
+                        });
+                        
                         frappe.call({
                             method: 'leet_devops.api.code_operations.apply_code_change',
                             args: {
@@ -20,12 +25,17 @@ frappe.ui.form.on('Code Change', {
                                     if (r.message.migrated) {
                                         frappe.msgprint({
                                             title: __('Migration Complete'),
-                                            message: __('Database has been migrated successfully'),
+                                            message: __('Database has been migrated successfully. The page will refresh in 2 seconds...'),
                                             indicator: 'green'
                                         });
+                                        
+                                        // Refresh after 2 seconds
+                                        setTimeout(() => {
+                                            window.location.reload();
+                                        }, 2000);
+                                    } else {
+                                        frm.reload_doc();
                                     }
-                                    
-                                    frm.reload_doc();
                                 } else {
                                     frappe.msgprint({
                                         title: 'Error',
@@ -61,7 +71,14 @@ frappe.ui.form.on('Code Change', {
                                         message: r.message.message,
                                         indicator: 'green'
                                     });
-                                    frm.reload_doc();
+                                    
+                                    if (r.message.migrated) {
+                                        setTimeout(() => {
+                                            window.location.reload();
+                                        }, 2000);
+                                    } else {
+                                        frm.reload_doc();
+                                    }
                                 } else {
                                     frappe.msgprint({
                                         title: 'Error',

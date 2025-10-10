@@ -3,6 +3,52 @@ frappe.ui.form.on('Dev Chat Session', {
         if (!frm.is_new()) {
             // Add chat interface
             render_chat_interface(frm);
+            
+            // Add "Apply All Changes" button
+            frm.add_custom_button(__('Apply All Pending Changes'), function() {
+                frappe.confirm(
+                    'This will apply all pending code changes from this session. Continue?',
+                    () => {
+                        frappe.show_alert({
+                            message: __('Applying changes...'),
+                            indicator: 'blue'
+                        });
+                        
+                        frappe.call({
+                            method: 'leet_devops.api.code_operations.apply_all_pending_changes',
+                            args: {
+                                session_id: frm.doc.name
+                            },
+                            callback: function(r) {
+                                if (r.message.success) {
+                                    let msg = r.message.message;
+                                    if (r.message.migrated) {
+                                        msg += '<br><br><b>✓ Database migrated successfully</b><br>Page will refresh in 3 seconds...';
+                                    }
+                                    
+                                    frappe.msgprint({
+                                        title: __('Changes Applied'),
+                                        message: msg,
+                                        indicator: 'green'
+                                    });
+                                    
+                                    if (r.message.migrated) {
+                                        setTimeout(() => {
+                                            window.location.reload();
+                                        }, 3000);
+                                    }
+                                } else {
+                                    frappe.msgprint({
+                                        title: 'Error',
+                                        message: r.message.error,
+                                        indicator: 'red'
+                                    });
+                                }
+                            }
+                        });
+                    }
+                );
+            }, __('Actions'));
         }
     }
 });
@@ -16,7 +62,7 @@ function render_chat_interface(frm) {
                 <textarea 
                     class="form-control" 
                     id="chat-input-${frm.doc.name}" 
-                    placeholder="Ask Claude anything about your development needs..."
+                    placeholder="Ask Claude anything about your development needs... (Ctrl+Enter to send)"
                     rows="3"
                 ></textarea>
                 <button 
@@ -80,6 +126,25 @@ function append_message(frm, msg) {
     let $container = $(`#chat-messages-${frm.doc.name}`);
     let message_class = msg.message_type.toLowerCase() + '-message';
     
+    let code_changes_html = '';
+    if (msg.code_changes && msg.code_changes.length > 0) {
+        code_changes_html = `
+            <div class="code-changes-summary">
+                <strong>📝 ${msg.code_changes.length} code change(s) suggested</strong>
+                <ul>
+                    ${msg.code_changes.map(c => `
+                        <li>
+                            <a href="/app/Form/Code%20Change/${c.name}" target="_blank">
+                                ${c.change_type}: ${c.file_path}
+                            </a>
+                            <span class="badge badge-${get_status_color(c.status)}">${c.status}</span>
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+        `;
+    }
+    
     let html = `
         <div class="chat-message ${message_class}">
             <div class="message-header">
@@ -87,10 +152,21 @@ function append_message(frm, msg) {
                 <span class="text-muted">${frappe.datetime.str_to_user(msg.timestamp)}</span>
             </div>
             <div class="message-content">${format_message(msg.message)}</div>
+            ${code_changes_html}
         </div>
     `;
     
     $container.append(html);
+}
+
+function get_status_color(status) {
+    const colors = {
+        'Pending': 'warning',
+        'Applied': 'success',
+        'Rejected': 'danger',
+        'Reverted': 'secondary'
+    };
+    return colors[status] || 'secondary';
 }
 
 function format_message(message) {
@@ -170,44 +246,3 @@ function send_chat_message(frm) {
         }
     });
 }
-
-// Add button to apply all pending changes in this session
-frappe.ui.form.on('Dev Chat Session', {
-    refresh: function(frm) {
-        if (!frm.is_new()) {
-            frm.add_custom_button(__('Apply All Pending Changes'), function() {
-                frappe.confirm(
-                    'This will apply all pending code changes from this session. Continue?',
-                    () => {
-                        frappe.call({
-                            method: 'leet_devops.api.code_operations.apply_all_pending_changes',
-                            args: {
-                                session_id: frm.doc.name
-                            },
-                            callback: function(r) {
-                                if (r.message.success) {
-                                    let msg = r.message.message;
-                                    if (r.message.migrated) {
-                                        msg += '<br><br><b>✓ Database migrated successfully</b>';
-                                    }
-                                    
-                                    frappe.msgprint({
-                                        title: __('Changes Applied'),
-                                        message: msg,
-                                        indicator: 'green'
-                                    });
-                                } else {
-                                    frappe.msgprint({
-                                        title: 'Error',
-                                        message: r.message.error,
-                                        indicator: 'red'
-                                    });
-                                }
-                            }
-                        });
-                    }
-                );
-            }, __('Actions'));
-        }
-    }
-});
