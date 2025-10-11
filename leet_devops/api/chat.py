@@ -2,6 +2,7 @@ import frappe
 import anthropic
 from anthropic import Anthropic
 import json
+from leet_devops.api.code_inspector import get_app_structure, get_similar_doctype_example, get_doctype_info
 
 @frappe.whitelist()
 def send_message(session_id, message):
@@ -14,6 +15,12 @@ def send_message(session_id, message):
             return {
                 'success': False,
                 'error': 'Claude API key not configured. Please configure in Leet DevOps Settings.'
+            }
+        
+        if not settings.target_app:
+            return {
+                'success': False,
+                'error': 'Target app not configured. Please select a target app in Leet DevOps Settings.'
             }
         
         # Create user message
@@ -32,8 +39,11 @@ def send_message(session_id, message):
         api_key = settings.get_password('claude_api_key')
         client = Anthropic(api_key=api_key)
         
-        # Create system prompt
-        system_prompt = get_system_prompt(settings)
+        # Get code context
+        code_context = get_code_context_for_message(message, settings.target_app)
+        
+        # Create system prompt with context
+        system_prompt = get_system_prompt(settings, code_context)
         
         # Call Claude API
         response = client.messages.create(
@@ -78,6 +88,45 @@ def send_message(session_id, message):
             'error': str(e)
         }
 
+def get_code_context_for_message(message, target_app):
+    """Analyze the message and gather relevant code context"""
+    context = {
+        'app_structure': get_app_structure(target_app),
+        'example_doctype': None,
+        'existing_doctype': None
+    }
+    
+    # Get an example DocType from the app to show Claude the pattern
+    example = get_similar_doctype_example(target_app)
+    if example:
+        context['example_doctype'] = example
+    
+    # Check if message mentions deleting/modifying a specific DocType
+    import re
+    
+    # Look for DocType names in the message
+    delete_pattern = r'delete.*?(doctype|dt).*?["\']?([A-Z][a-zA-Z\s]+)["\']?'
+    modify_pattern = r'(modify|update|change|edit).*?(doctype|dt).*?["\']?([A-Z][a-zA-Z\s]+)["\']?'
+    
+    doctype_name = None
+    
+    delete_match = re.search(delete_pattern, message, re.IGNORECASE)
+    if delete_match:
+        doctype_name = delete_match.group(2).strip()
+    
+    if not doctype_name:
+        modify_match = re.search(modify_pattern, message, re.IGNORECASE)
+        if modify_match:
+            doctype_name = modify_match.group(3).strip()
+    
+    # If we found a DocType name, get its info
+    if doctype_name:
+        doctype_info = get_doctype_info(doctype_name)
+        if doctype_info:
+            context['existing_doctype'] = doctype_info
+    
+    return context
+
 def get_conversation_history(session_id):
     """Get conversation history for a session"""
     messages = frappe.get_all(
@@ -97,52 +146,112 @@ def get_conversation_history(session_id):
     
     return history
 
-def get_system_prompt(settings):
-    """Get the system prompt for Claude"""
+def get_system_prompt(settings, code_context):
+    """Get the system prompt for Claude with code context"""
     bench_path = frappe.utils.get_bench_path()
-    target_app = settings.target_app or 'custom_app'
+    target_app = settings.target_app
     
+    app_structure = code_context.get('app_structure', {})
+    existing_doctype = code_context.get('existing_doctype')
+    example_doctype = code_context.get('example_doctype')
+    
+    # Build context about the app
+    app_context = f"""
+## Current App Context
+
+**Target App:** {target_app}
+**App Path:** apps/{target_app}/{target_app}/
+
+**Existing Modules:**
+{chr(10).join(f"  - {m}" for m in app_structure.get('modules', [])) if app_structure.get('modules') else "  (No modules yet)"}
+
+**Existing DocTypes ({len(app_structure.get('doctypes', []))}):**
+{chr(10).join(f"  - {dt['name']} (Module: {dt['module']})" for dt in app_structure.get('doctypes', [])[:10]) if app_structure.get('doctypes') else "  (No DocTypes yet)"}
+
+**Existing Pages ({len(app_structure.get('pages', []))}):**
+{chr(10).join(f"  - {p}" for p in app_structure.get('pages', [])) if app_structure.get('pages') else "  (No pages yet)"}
+"""
+
+    # Add example if available
+    if example_doctype and example_doctype.get('py_structure'):
+        app_context += f"""
+**Example DocType Pattern from this app ({example_doctype['name']}):**
+```python
+{example_doctype['py_structure']}
+```
+"""
+
+    # Add existing doctype info if user is modifying/deleting one
+    if existing_doctype:
+        app_context += f"""
+**DocType Being Referenced: {existing_doctype['name']}**
+  - Module: {existing_doctype['module']}
+  - App: {existing_doctype['app']}
+  - Type: {"Single" if existing_doctype['is_single'] else "Child Table" if existing_doctype['is_child'] else "Normal"}
+  - Fields: {len(existing_doctype['fields'])}
+  
+**Field Structure:**
+{chr(10).join(f"  - {f['fieldname']} ({f['fieldtype']}): {f['label']}" for f in existing_doctype['fields'][:10])}
+"""
+
     return f"""You are an expert Frappe/ERPNext developer assistant. You help users develop and customize their Frappe applications.
 
-Current Context:
-- Bench Path: {bench_path}
-- Target App: {target_app}
-- You can create, modify, and delete files in the target app
-- You have access to Frappe framework documentation and best practices
+{app_context}
 
-Your responsibilities:
-1. Help users create DocTypes, API endpoints, custom scripts, and other Frappe components
-2. Provide code that follows Frappe best practices
-3. When providing code changes, format them as:
-   ```change
-   file_path: apps/{target_app}/path/to/file.py
-   change_type: create|modify|delete
-   ---
-   [code content here]
-   ```
+## Your Responsibilities:
 
-4. Explain your changes clearly
-5. Consider security, performance, and maintainability
+1. **ALWAYS use the target app: {target_app}** - Never use custom_app or any other app name
+2. **Follow the existing code patterns** shown in the app structure above
+3. **Check existing DocTypes** before creating new ones to avoid duplicates
+4. When modifying or deleting, use the exact paths and structure from the app
+5. Provide code that follows Frappe best practices
 
-Guidelines:
+## Code Change Format:
+
+When providing code changes, use this EXACT format:
+
+```change
+file_path: apps/{target_app}/{target_app}/doctype/[doctype_folder]/[filename]
+change_type: create|modify|delete
+---
+[code content here]
+```
+
+## Important Path Rules:
+
+- DocTypes go in: `apps/{target_app}/{target_app}/doctype/[snake_case_name]/`
+- Pages go in: `apps/{target_app}/{target_app}/page/[snake_case_name]/`
+- API files go in: `apps/{target_app}/{target_app}/api/`
+- Public JS go in: `apps/{target_app}/public/js/`
+- Public CSS go in: `apps/{target_app}/public/css/`
+
+## Guidelines:
+
 - Always use Frappe's built-in methods and utilities
 - Follow Python PEP 8 style guide
 - Use proper error handling
 - Add appropriate permissions and validations
-- Test your suggestions mentally before providing them
-- Place all code in the {target_app} app directory structure
+- **Match the coding style** of existing files in the app
+- When deleting DocTypes, delete ALL related files (.json, .py, .js)
 
-When users ask you to make changes:
-1. First explain what you'll do
-2. Provide the code with proper formatting
-3. Explain how to test the changes
-4. Mention any dependencies or requirements
+## Example Workflow:
+
+When user asks to "Delete Customer Feedback DocType":
+1. Check if it exists in {target_app}
+2. Identify all files: customer_feedback.json, customer_feedback.py, customer_feedback.js
+3. Create delete changes for each file
+4. Remind user that migration will run automatically
+
+When creating new DocTypes:
+1. Follow the pattern from existing DocTypes in the app
+2. Use the same module structure
+3. Place files in the correct app directory
 """
 
 def extract_code_changes(message, settings):
     """Extract code changes from assistant message"""
     changes = []
-    target_app = settings.target_app or 'custom_app'
+    target_app = settings.target_app
     
     # Look for code blocks with change markers
     import re
@@ -154,9 +263,18 @@ def extract_code_changes(message, settings):
         change_type = match.group(2).strip().capitalize()
         code = match.group(3).strip()
         
-        # Ensure file path uses the target app
+        # Ensure file path uses the correct target app
+        # Replace any mention of custom_app with the actual target app
+        file_path = file_path.replace('custom_app', target_app)
+        
+        # Ensure it starts with apps/
         if not file_path.startswith('apps/'):
-            file_path = f'apps/{target_app}/{file_path}'
+            # If it starts with the app name, add apps/ prefix
+            if file_path.startswith(target_app):
+                file_path = f'apps/{file_path}'
+            else:
+                # Otherwise assume it's a relative path within the app
+                file_path = f'apps/{target_app}/{file_path}'
         
         changes.append({
             'file_path': file_path,
