@@ -12,26 +12,6 @@ class LeetDevOpsSettings(Document):
         # Validate temperature range
         if self.temperature and (self.temperature < 0 or self.temperature > 1):
             frappe.throw(_("Temperature must be between 0.0 and 1.0"))
-        
-        # Populate target_app options
-        self.populate_app_options()
-    
-    def populate_app_options(self):
-        """Populate the target app options with installed apps"""
-        bench_path = frappe.utils.get_bench_path()
-        apps_path = os.path.join(bench_path, 'apps')
-        
-        # Get all apps from apps directory
-        apps = []
-        if os.path.exists(apps_path):
-            for item in os.listdir(apps_path):
-                app_path = os.path.join(apps_path, item)
-                if os.path.isdir(app_path) and not item.startswith('.'):
-                    # Check if it's a valid Frappe app
-                    if os.path.exists(os.path.join(app_path, 'hooks.py')):
-                        apps.append(item)
-        
-        return apps
     
     def get_github_client(self):
         """Get authenticated GitHub client"""
@@ -75,13 +55,11 @@ def get_available_apps():
             app_path = os.path.join(apps_path, item)
             if os.path.isdir(app_path) and not item.startswith('.'):
                 # Check if it's a valid Frappe app
-                if os.path.exists(os.path.join(app_path, 'hooks.py')):
-                    apps.append({
-                        'value': item,
-                        'label': item.replace('_', ' ').title()
-                    })
+                hooks_file = os.path.join(app_path, item, 'hooks.py')
+                if os.path.exists(hooks_file):
+                    apps.append(item)
     
-    return sorted(apps, key=lambda x: x['label'])
+    return sorted(apps)
 
 @frappe.whitelist()
 def test_github_connection():

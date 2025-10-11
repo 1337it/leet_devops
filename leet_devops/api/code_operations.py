@@ -351,3 +351,51 @@ def apply_all_pending_changes(session_id=None):
             'success': False,
             'error': str(e)
         }
+
+@frappe.whitelist()
+def apply_and_prepare_commit(change_name, commit_message=None):
+    """Apply a change and prepare it for commit"""
+    # Apply the change
+    apply_result = apply_code_change(change_name)
+    
+    if not apply_result.get('success'):
+        return apply_result
+    
+    # Create commit
+    from leet_devops.api.github_operations import create_commit_from_changes
+    
+    commit_result = create_commit_from_changes(
+        [change_name],
+        commit_message=commit_message
+    )
+    
+    return {
+        'success': True,
+        'message': 'Change applied and commit prepared',
+        'apply_result': apply_result,
+        'commit_result': commit_result
+    }
+
+@frappe.whitelist()
+def apply_and_prepare_commit(change_name, commit_message=None):
+    """Apply a change and prepare it for commit"""
+    # Apply the change
+    apply_result = apply_code_change(change_name)
+    
+    if not apply_result.get('success'):
+        return apply_result
+    
+    # Create commit
+    from leet_devops.api.github_operations import create_commit_from_changes
+    
+    commit_result = create_commit_from_changes(
+        [change_name],
+        commit_message=commit_message
+    )
+    
+    return {
+        'success': True,
+        'message': 'Change applied and commit prepared',
+        'apply_result': apply_result,
+        'commit_result': commit_result
+    }

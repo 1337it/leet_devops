@@ -29,7 +29,6 @@ frappe.ui.form.on('Code Change', {
                                             indicator: 'green'
                                         });
                                         
-                                        // Refresh after 2 seconds
                                         setTimeout(() => {
                                             window.location.reload();
                                         }, 2000);
@@ -49,6 +48,41 @@ frappe.ui.form.on('Code Change', {
                 );
             });
             
+            frm.add_custom_button(__('Apply & Commit'), function() {
+                frappe.prompt([
+                    {
+                        fieldname: 'commit_message',
+                        label: 'Commit Message',
+                        fieldtype: 'Small Text',
+                        reqd: 1,
+                        default: `Applied ${frm.doc.change_type}: ${frm.doc.file_path}`
+                    }
+                ], function(values) {
+                    frappe.call({
+                        method: 'leet_devops.api.code_operations.apply_and_prepare_commit',
+                        args: {
+                            change_name: frm.doc.name,
+                            commit_message: values.commit_message
+                        },
+                        callback: function(r) {
+                            if (r.message.success) {
+                                frappe.msgprint({
+                                    title: __('Success'),
+                                    message: __('Change applied and prepared for GitHub commit'),
+                                    indicator: 'green'
+                                });
+                                
+                                if (r.message.commit_result && r.message.commit_result.commit_id) {
+                                    frappe.set_route('Form', 'Code Commit', r.message.commit_result.commit_id);
+                                } else {
+                                    frm.reload_doc();
+                                }
+                            }
+                        }
+                    });
+                }, __('Apply and Prepare Commit'), __('Apply'));
+            });
+            
             frm.add_custom_button(__('Reject'), function() {
                 frm.set_value('status', 'Rejected');
                 frm.save();
@@ -56,6 +90,31 @@ frappe.ui.form.on('Code Change', {
         }
         
         if (frm.doc.status === 'Applied') {
+            frm.add_custom_button(__('Create Commit'), function() {
+                frappe.prompt([
+                    {
+                        fieldname: 'commit_message',
+                        label: 'Commit Message',
+                        fieldtype: 'Small Text',
+                        reqd: 1,
+                        default: `Applied ${frm.doc.change_type}: ${frm.doc.file_path}`
+                    }
+                ], function(values) {
+                    frappe.call({
+                        method: 'leet_devops.api.github_operations.create_commit_from_changes',
+                        args: {
+                            change_ids: [frm.doc.name],
+                            commit_message: values.commit_message
+                        },
+                        callback: function(r) {
+                            if (r.message.success) {
+                                frappe.set_route('Form', 'Code Commit', r.message.commit_id);
+                            }
+                        }
+                    });
+                }, __('Create Commit'), __('Create'));
+            });
+            
             frm.add_custom_button(__('Revert'), function() {
                 frappe.confirm(
                     'Are you sure you want to revert this change?',
@@ -79,12 +138,6 @@ frappe.ui.form.on('Code Change', {
                                     } else {
                                         frm.reload_doc();
                                     }
-                                } else {
-                                    frappe.msgprint({
-                                        title: 'Error',
-                                        message: r.message.error,
-                                        indicator: 'red'
-                                    });
                                 }
                             }
                         });
@@ -93,7 +146,6 @@ frappe.ui.form.on('Code Change', {
             });
         }
         
-        // Add view diff button
         if (frm.doc.diff) {
             frm.add_custom_button(__('View Diff'), function() {
                 frappe.msgprint({

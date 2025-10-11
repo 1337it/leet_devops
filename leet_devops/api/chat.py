@@ -3,6 +3,7 @@ import anthropic
 from anthropic import Anthropic
 import json
 from leet_devops.api.code_inspector import get_app_structure, get_similar_doctype_example, get_doctype_info
+from leet_devops.api.path_utils import correct_file_path, validate_doctype_path, get_doctype_files_from_db, to_snake_case
 
 @frappe.whitelist()
 def send_message(session_id, message):
@@ -60,6 +61,10 @@ def send_message(session_id, message):
         # Parse code changes if any
         code_changes = extract_code_changes(assistant_message, settings)
         
+        # Parse commands if any
+        commands = extract_commands_from_message(assistant_message)
+        code_changes.extend(commands)
+        
         # Save assistant message
         assistant_doc = frappe.get_doc({
             'doctype': 'Dev Chat Message',
@@ -93,7 +98,8 @@ def get_code_context_for_message(message, target_app):
     context = {
         'app_structure': get_app_structure(target_app),
         'example_doctype': None,
-        'existing_doctype': None
+        'existing_doctype': None,
+        'naming_examples': get_naming_examples(target_app)
     }
     
     # Get an example DocType from the app to show Claude the pattern
@@ -107,6 +113,7 @@ def get_code_context_for_message(message, target_app):
     # Look for DocType names in the message
     delete_pattern = r'delete.*?(doctype|dt).*?["\']?([A-Z][a-zA-Z\s]+)["\']?'
     modify_pattern = r'(modify|update|change|edit).*?(doctype|dt).*?["\']?([A-Z][a-zA-Z\s]+)["\']?'
+    create_pattern = r'create.*?(doctype|dt).*?["\']?([A-Z][a-zA-Z\s]+)["\']?'
     
     doctype_name = None
     
@@ -119,13 +126,49 @@ def get_code_context_for_message(message, target_app):
         if modify_match:
             doctype_name = modify_match.group(3).strip()
     
+    if not doctype_name:
+        create_match = re.search(create_pattern, message, re.IGNORECASE)
+        if create_match:
+            doctype_name = create_match.group(2).strip()
+    
     # If we found a DocType name, get its info
     if doctype_name:
         doctype_info = get_doctype_info(doctype_name)
         if doctype_info:
             context['existing_doctype'] = doctype_info
+            # Get actual file paths
+            file_paths = get_doctype_files_from_db(doctype_name)
+            if file_paths:
+                context['existing_files'] = file_paths
     
     return context
+
+def get_naming_examples(target_app):
+    """Get examples of proper naming from the app"""
+    bench_path = frappe.utils.get_bench_path()
+    import os
+    
+    examples = {
+        'doctypes': [],
+        'pages': [],
+        'pattern': 'snake_case (all lowercase with underscores)'
+    }
+    
+    # Get actual DocType folder names
+    doctype_path = os.path.join(bench_path, 'apps', target_app, target_app, 'doctype')
+    if os.path.exists(doctype_path):
+        for folder in os.listdir(doctype_path)[:5]:  # First 5 as examples
+            if os.path.isdir(os.path.join(doctype_path, folder)):
+                examples['doctypes'].append(folder)
+    
+    # Get actual Page folder names
+    page_path = os.path.join(bench_path, 'apps', target_app, target_app, 'page')
+    if os.path.exists(page_path):
+        for folder in os.listdir(page_path)[:5]:
+            if os.path.isdir(os.path.join(page_path, folder)):
+                examples['pages'].append(folder)
+    
+    return examples
 
 def get_conversation_history(session_id):
     """Get conversation history for a session"""
@@ -153,7 +196,35 @@ def get_system_prompt(settings, code_context):
     
     app_structure = code_context.get('app_structure', {})
     existing_doctype = code_context.get('existing_doctype')
+    existing_files = code_context.get('existing_files')
     example_doctype = code_context.get('example_doctype')
+    naming_examples = code_context.get('naming_examples', {})
+    
+    # Build naming examples
+    naming_section = f"""
+## CRITICAL: File Naming Convention
+
+**All folder and file names MUST be in snake_case (lowercase with underscores)**
+
+**Naming Rules:**
+1. DocType "Customer Feedback" → folder: `customer_feedback`
+2. Files: `customer_feedback.json`, `customer_feedback.py`, `customer_feedback.js`
+3. Page "Sales Dashboard" → folder: `sales_dashboard`
+4. Files: `sales_dashboard.json`, `sales_dashboard.py`, `sales_dashboard.js`
+
+**Examples from {target_app} app:**
+DocType folders: {', '.join(f"`{n}`" for n in naming_examples.get('doctypes', [])) if naming_examples.get('doctypes') else 'None yet'}
+Page folders: {', '.join(f"`{n}`" for n in naming_examples.get('pages', [])) if naming_examples.get('pages') else 'None yet'}
+
+**NEVER use:**
+- PascalCase: `CustomerFeedback` ❌
+- camelCase: `customerFeedback` ❌
+- Spaces: `customer feedback` ❌
+- Mixed case: `Customer_Feedback` ❌
+
+**ALWAYS use:**
+- snake_case: `customer_feedback` ✓
+"""
     
     # Build context about the app
     app_context = f"""
@@ -181,7 +252,7 @@ def get_system_prompt(settings, code_context):
 ```
 """
 
-    # Add existing doctype info if user is modifying/deleting one
+    # Add existing doctype/files info if user is modifying/deleting one
     if existing_doctype:
         app_context += f"""
 **DocType Being Referenced: {existing_doctype['name']}**
@@ -189,67 +260,69 @@ def get_system_prompt(settings, code_context):
   - App: {existing_doctype['app']}
   - Type: {"Single" if existing_doctype['is_single'] else "Child Table" if existing_doctype['is_child'] else "Normal"}
   - Fields: {len(existing_doctype['fields'])}
-  
-**Field Structure:**
-{chr(10).join(f"  - {f['fieldname']} ({f['fieldtype']}): {f['label']}" for f in existing_doctype['fields'][:10])}
+"""
+        
+        if existing_files:
+            app_context += f"""
+**ACTUAL FILE PATHS (USE THESE EXACT PATHS):**
+  - Folder: `{existing_files['folder_name']}`
+  - JSON: `{existing_files['json_file']}`
+  - Python: `{existing_files['py_file']}`
+  - JavaScript: `{existing_files['js_file']}`
+  - Init: `{existing_files['init_file']}`
 """
 
     return f"""You are an expert Frappe/ERPNext developer assistant. You help users develop and customize their Frappe applications.
+
+{naming_section}
 
 {app_context}
 
 ## Your Responsibilities:
 
-1. **ALWAYS use the target app: {target_app}** - Never use custom_app or any other app name
-2. **Follow the existing code patterns** shown in the app structure above
-3. **Check existing DocTypes** before creating new ones to avoid duplicates
-4. When modifying or deleting, use the exact paths and structure from the app
-5. Provide code that follows Frappe best practices
+1. **ALWAYS use the target app: {target_app}** - Never use custom_app
+2. **CRITICAL: Use exact snake_case naming** - all lowercase with underscores
+3. **Use EXACT paths shown above** for existing DocTypes
+4. **Follow the existing code patterns** from the app
+5. When creating new DocTypes, convert names to snake_case
 
 ## Code Change Format:
 
-When providing code changes, use this EXACT format:
+**CRITICAL: File paths must use EXACT snake_case names**
 
 ```change
-file_path: apps/{target_app}/{target_app}/doctype/[doctype_folder]/[filename]
+file_path: apps/{target_app}/{target_app}/doctype/[folder_in_snake_case]/[filename_in_snake_case.ext]
 change_type: create|modify|delete
 ---
 [code content here]
 ```
 
-## Important Path Rules:
+## Path Examples:
 
-- DocTypes go in: `apps/{target_app}/{target_app}/doctype/[snake_case_name]/`
-- Pages go in: `apps/{target_app}/{target_app}/page/[snake_case_name]/`
-- API files go in: `apps/{target_app}/{target_app}/api/`
-- Public JS go in: `apps/{target_app}/public/js/`
-- Public CSS go in: `apps/{target_app}/public/css/`
+**Creating "Customer Feedback" DocType:**
+```
+apps/{target_app}/{target_app}/doctype/customer_feedback/customer_feedback.json
+apps/{target_app}/{target_app}/doctype/customer_feedback/customer_feedback.py
+apps/{target_app}/{target_app}/doctype/customer_feedback/__init__.py
+```
+
+**Creating "Sales Dashboard" Page:**
+```
+apps/{target_app}/{target_app}/page/sales_dashboard/sales_dashboard.json
+apps/{target_app}/{target_app}/page/sales_dashboard/sales_dashboard.js
+```
 
 ## Guidelines:
 
-- Always use Frappe's built-in methods and utilities
-- Follow Python PEP 8 style guide
-- Use proper error handling
-- Add appropriate permissions and validations
-- **Match the coding style** of existing files in the app
-- When deleting DocTypes, delete ALL related files (.json, .py, .js)
-
-## Example Workflow:
-
-When user asks to "Delete Customer Feedback DocType":
-1. Check if it exists in {target_app}
-2. Identify all files: customer_feedback.json, customer_feedback.py, customer_feedback.js
-3. Create delete changes for each file
-4. Remind user that migration will run automatically
-
-When creating new DocTypes:
-1. Follow the pattern from existing DocTypes in the app
-2. Use the same module structure
-3. Place files in the correct app directory
+- Convert all names to snake_case immediately
+- Match existing folder names exactly (case-sensitive)
+- When deleting, use the EXACT paths shown above
+- Add __init__.py for new folders
+- Follow Python PEP 8 and Frappe conventions
 """
 
 def extract_code_changes(message, settings):
-    """Extract code changes from assistant message"""
+    """Extract code changes from assistant message and validate paths"""
     changes = []
     target_app = settings.target_app
     
@@ -263,18 +336,8 @@ def extract_code_changes(message, settings):
         change_type = match.group(2).strip().capitalize()
         code = match.group(3).strip()
         
-        # Ensure file path uses the correct target app
-        # Replace any mention of custom_app with the actual target app
-        file_path = file_path.replace('custom_app', target_app)
-        
-        # Ensure it starts with apps/
-        if not file_path.startswith('apps/'):
-            # If it starts with the app name, add apps/ prefix
-            if file_path.startswith(target_app):
-                file_path = f'apps/{file_path}'
-            else:
-                # Otherwise assume it's a relative path within the app
-                file_path = f'apps/{target_app}/{file_path}'
+        # Correct the file path
+        file_path = correct_file_path(file_path, target_app)
         
         changes.append({
             'file_path': file_path,
@@ -349,3 +412,78 @@ def create_session(session_name, description=''):
             'success': False,
             'error': str(e)
         }
+
+def extract_commands_from_message(message):
+    """Extract command blocks from assistant message"""
+    commands = []
+    
+    import re
+    
+    # Look for command blocks
+    # Format: ```command type: [type] description: [desc] --- [code] ```
+    pattern = r'```command\s+type:\s*(.+?)\s+description:\s*(.+?)\s*---\s*(.+?)```'
+    matches = re.finditer(pattern, message, re.DOTALL | re.IGNORECASE)
+    
+    for match in matches:
+        command_type = match.group(1).strip()
+        description = match.group(2).strip()
+        code = match.group(3).strip()
+        
+        # Map command types
+        type_mapping = {
+            'console': 'Bench Console',
+            'bench console': 'Bench Console',
+            'shell': 'Shell Command',
+            'bash': 'Shell Command',
+            'sql': 'SQL Query',
+            'python': 'Python Script'
+        }
+        
+        mapped_type = type_mapping.get(command_type.lower(), 'Python Script')
+        
+        commands.append({
+            'change_type': 'Command',
+            'is_command': 1,
+            'command_type': mapped_type,
+            'command_code': code,
+            'command_description': description,
+            'status': 'Pending'
+        })
+    
+    return commands
+
+# Update the send_message function to also extract commands
+# (Modify existing function to include commands)
+
+# Add this to the system prompt documentation:
+"""
+## Command Execution Format:
+
+For database updates, migrations, or verification commands, use:
+
+```command
+type: bench console
+description: Update all DocTypes to use correct module name
+---
+import frappe
+frappe.connect()
+
+# Your code here
+doctypes = frappe.get_all("DocType", filters={"module": "Leetrental"})
+for dt in doctypes:
+    doc = frappe.get_doc("DocType", dt.name)
+    doc.module = "leetrental"
+    doc.save()
+    
+frappe.db.commit()
+print(f"Updated {len(doctypes)} DocTypes")
+```
+
+Command types:
+- `bench console` - Python code in Frappe context
+- `shell` - Shell commands (bench migrate, etc.)
+- `sql` - Direct SQL queries
+- `python` - Python scripts
+
+Commands will be executed when user clicks "Apply All Changes"
+"""

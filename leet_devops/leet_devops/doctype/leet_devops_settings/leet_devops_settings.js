@@ -1,4 +1,9 @@
 frappe.ui.form.on('Leet DevOps Settings', {
+    onload: function(frm) {
+        // Load available apps on form load
+        load_available_apps(frm);
+    },
+    
     refresh: function(frm) {
         // Add custom buttons
         frm.add_custom_button(__('Test Claude API'), function() {
@@ -15,7 +20,7 @@ frappe.ui.form.on('Leet DevOps Settings', {
             });
         }
         
-        // Load available apps
+        // Reload apps
         load_available_apps(frm);
     },
     
@@ -23,13 +28,34 @@ frappe.ui.form.on('Leet DevOps Settings', {
         if (frm.doc.enable_github_integration) {
             load_github_repos(frm);
         }
-    },
-    
-    onload: function(frm) {
-        // Set field options dynamically
-        load_available_apps(frm);
     }
 });
+
+function load_available_apps(frm) {
+    frappe.call({
+        method: 'leet_devops.leet_devops.doctype.leet_devops_settings.leet_devops_settings.get_available_apps',
+        callback: function(r) {
+            if (r.message && r.message.length > 0) {
+                let options = r.message.join('\n');
+                frm.set_df_property('target_app', 'options', options);
+                frm.refresh_field('target_app');
+                
+                console.log('Loaded apps:', r.message);
+                
+                frappe.show_alert({
+                    message: __('Loaded {0} apps', [r.message.length]),
+                    indicator: 'green'
+                }, 3);
+            } else {
+                frappe.msgprint(__('No apps found in bench'));
+            }
+        },
+        error: function(r) {
+            console.error('Error loading apps:', r);
+            frappe.msgprint(__('Error loading apps. Check console for details.'));
+        }
+    });
+}
 
 function test_claude_api(frm) {
     if (!frm.doc.claude_api_key) {
@@ -81,19 +107,6 @@ function test_github_connection(frm) {
                     message: r.message.message || __('Failed to connect to GitHub'),
                     indicator: 'red'
                 });
-            }
-        }
-    });
-}
-
-function load_available_apps(frm) {
-    frappe.call({
-        method: 'leet_devops.leet_devops.doctype.leet_devops_settings.leet_devops_settings.get_available_apps',
-        callback: function(r) {
-            if (r.message) {
-                let options = r.message.map(app => app.value).join('\n');
-                frm.set_df_property('target_app', 'options', options);
-                frm.refresh_field('target_app');
             }
         }
     });

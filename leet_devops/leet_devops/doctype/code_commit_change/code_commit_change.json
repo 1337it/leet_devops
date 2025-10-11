@@ -1,0 +1,65 @@
+{
+ "actions": [],
+ "creation": "2024-01-01 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "code_change",
+  "file_path",
+  "change_type",
+  "column_break_3",
+  "applied_at",
+  "git_status"
+ ],
+ "fields": [
+  {
+   "fieldname": "code_change",
+   "fieldtype": "Link",
+   "label": "Code Change",
+   "options": "Code Change"
+  },
+  {
+   "fieldname": "file_path",
+   "fieldtype": "Data",
+   "label": "File Path",
+   "read_only": 1
+  },
+  {
+   "fieldname": "change_type",
+   "fieldtype": "Data",
+   "label": "Change Type",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "applied_at",
+   "fieldtype": "Datetime",
+   "label": "Applied At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "git_status",
+   "fieldtype": "Select",
+   "label": "Git Status",
+   "options": "Not Staged\nStaged\nCommitted",
+   "default": "Not Staged",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2024-01-01 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Leet DevOps",
+ "name": "Code Commit Change",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

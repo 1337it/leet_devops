@@ -246,3 +246,145 @@ function send_chat_message(frm) {
         }
     });
 }
+
+// Add "Preview Changes" button
+frappe.ui.form.on('Dev Chat Session', {
+    refresh: function(frm) {
+        if (!frm.is_new()) {
+            frm.add_custom_button(__('Preview All Changes'), function() {
+                show_execution_preview(frm);
+            }, __('Actions'));
+        }
+    }
+});
+
+function show_execution_preview(frm) {
+    // Get latest message
+    frappe.call({
+        method: 'leet_devops.api.chat.get_messages',
+        args: {
+            session_id: frm.doc.name
+        },
+        callback: function(r) {
+            if (r.message && r.message.length > 0) {
+                let latest_msg = r.message[r.message.length - 1];
+                
+                if (latest_msg.code_changes && latest_msg.code_changes.length > 0) {
+                    show_preview_dialog(latest_msg);
+                } else {
+                    frappe.msgprint('No changes to preview');
+                }
+            }
+        }
+    });
+}
+
+function show_preview_dialog(message) {
+    let changes = message.code_changes;
+    
+    let html = '<div class="execution-preview">';
+    html += '<h4>📋 Execution Plan</h4>';
+    html += `<p><strong>Total Actions:</strong> ${changes.length}</p>`;
+    html += '<hr>';
+    
+    // Group by type
+    let file_changes = changes.filter(c => !c.is_command);
+    let commands = changes.filter(c => c.is_command);
+    
+    if (file_changes.length > 0) {
+        html += '<h5>📁 File Changes:</h5><ul>';
+        file_changes.forEach(change => {
+            let icon = change.change_type === 'Create' ? '➕' : 
+                       change.change_type === 'Modify' ? '✏️' : '🗑️';
+            let badge = `<span class="badge badge-${change.status === 'Pending' ? 'warning' : 'success'}">${change.status}</span>`;
+            html += `<li>${icon} <strong>${change.change_type}</strong>: ${change.file_path} ${badge}</li>`;
+        });
+        html += '</ul>';
+    }
+    
+    if (commands.length > 0) {
+        html += '<h5>⚡ Commands to Execute:</h5><ul>';
+        commands.forEach(cmd => {
+            let badge = `<span class="badge badge-${cmd.status === 'Pending' ? 'warning' : 'success'}">${cmd.status}</span>`;
+            html += `<li><strong>${cmd.command_type}</strong>: ${cmd.command_description || 'No description'} ${badge}</li>`;
+        });
+        html += '</ul>';
+    }
+    
+    html += '</div>';
+    
+    frappe.msgprint({
+        title: 'Execution Preview',
+        message: html,
+        wide: true,
+        primary_action: {
+            label: 'Apply All',
+            action: function() {
+                apply_all_with_commands(message);
+            }
+        }
+    });
+}
+
+function apply_all_with_commands(message) {
+    frappe.confirm(
+        'This will apply all file changes AND execute all commands. Continue?',
+        () => {
+            let changes = message.code_changes;
+            let total = changes.length;
+            let completed = 0;
+            let errors = [];
+            
+            frappe.show_alert({
+                message: `Processing ${total} changes...`,
+                indicator: 'blue'
+            });
+            
+            // Process each change
+            changes.forEach((change, index) => {
+                setTimeout(() => {
+                    let method = change.is_command ? 
+                        'leet_devops.api.command_executor.execute_command' : 
+                        'leet_devops.api.code_operations.apply_code_change';
+                    
+                    frappe.call({
+                        method: method,
+                        args: {
+                            change_name: change.name
+                        },
+                        callback: function(r) {
+                            completed++;
+                            
+                            if (!r.message || !r.message.success) {
+                                errors.push(`${change.name}: ${r.message ? r.message.error : 'Unknown error'}`);
+                            }
+                            
+                            if (completed === total) {
+                                // All done
+                                if (errors.length === 0) {
+                                    frappe.msgprint({
+                                        title: 'Success',
+                                        message: `All ${total} changes applied successfully! Page will refresh in 3 seconds...`,
+                                        indicator: 'green'
+                                    });
+                                    
+                                    setTimeout(() => {
+                                        window.location.reload();
+                                    }, 3000);
+                                } else {
+                                    frappe.msgprint({
+                                        title: 'Completed with Errors',
+                                        message: `Completed ${completed - errors.length} of ${total} successfully.<br><br>Errors:<br>${errors.join('<br>')}`,
+                                        indicator: 'orange'
+                                    });
+                                }
+                            } else {
+                                frappe.show_progress('Applying changes', completed, total);
+                            }
+                        }
+                    });
+                }, index * 500); // Stagger by 500ms
+            });
+        }
+    );
+}
