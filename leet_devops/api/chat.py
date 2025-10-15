@@ -12,8 +12,8 @@ from leet_devops.api.path_utils import correct_file_path, to_snake_case
 from leet_devops.api.app_structure_detector import detect_app_structure
 
 @frappe.whitelist()
-def send_message(session_id, message):
-    """Send a message to Claude and get a response"""
+def send_message(session_id, message, stream=True):
+    """Send a message to Claude and get a response with streaming support"""
     try:
         settings = frappe.get_single('Leet DevOps Settings')
         
@@ -29,6 +29,7 @@ def send_message(session_id, message):
                 'error': 'Target app not configured. Please select a target app in Leet DevOps Settings.'
             }
         
+        # Create user message
         user_message = frappe.get_doc({
             'doctype': 'Dev Chat Message',
             'session': session_id,
@@ -37,6 +38,7 @@ def send_message(session_id, message):
         })
         user_message.insert()
         
+        # Get conversation history and context
         history = get_conversation_history(session_id)
         api_key = settings.get_password('claude_api_key')
         client = Anthropic(api_key=api_key)
@@ -44,45 +46,24 @@ def send_message(session_id, message):
         code_context = get_code_context_for_message(message, settings.target_app)
         system_prompt = get_system_prompt(settings, code_context)
         
-        response = client.messages.create(
-            model=settings.claude_model or "claude-sonnet-4-5-20250929",
-            max_tokens=settings.max_tokens or 8096,
-            temperature=settings.temperature or 0.7,
-            system=system_prompt,
-            messages=history
-        )
-        
-        assistant_message = response.content[0].text
-        
-        # Parse code changes
-        code_changes = extract_code_changes(assistant_message, settings)
-        
-        # Parse commands
-        commands = extract_commands_from_message(assistant_message)
-        
-        # Only add valid commands (not null/empty)
-        for cmd in commands:
-            if cmd.get('command_code') and cmd.get('command_description'):
-                code_changes.append(cmd)
-        
-        assistant_doc = frappe.get_doc({
-            'doctype': 'Dev Chat Message',
-            'session': session_id,
-            'message_type': 'Assistant',
-            'message': assistant_message
-        })
-        
-        for change in code_changes:
-            assistant_doc.append('code_changes', change)
-        
-        assistant_doc.insert()
-        
-        return {
-            'success': True,
-            'message': assistant_message,
-            'message_id': assistant_doc.name,
-            'code_changes': code_changes
-        }
+        # Enable streaming
+        if stream:
+            return stream_response(
+                client, 
+                settings, 
+                system_prompt, 
+                history, 
+                session_id
+            )
+        else:
+            # Fallback to non-streaming
+            return send_message_no_stream(
+                client, 
+                settings, 
+                system_prompt, 
+                history, 
+                session_id
+            )
         
     except Exception as e:
         frappe.log_error(f"Chat API Error: {str(e)}")
@@ -90,6 +71,131 @@ def send_message(session_id, message):
             'success': False,
             'error': str(e)
         }
+
+def stream_response(client, settings, system_prompt, history, session_id):
+    """Handle streaming response from Claude"""
+    try:
+        full_response = ""
+        
+        # Create streaming request
+        with client.messages.stream(
+            model=settings.claude_model or "claude-sonnet-4-5-20250929",
+            max_tokens=settings.max_tokens or 8096,
+            temperature=settings.temperature or 0.7,
+            system=system_prompt,
+            messages=history
+        ) as stream:
+            
+            # Stream text chunks to frontend
+            for text in stream.text_stream:
+                full_response += text
+                
+                # Publish real-time update to frontend
+                frappe.publish_realtime(
+                    event='claude_stream',
+                    message={
+                        'session_id': session_id,
+                        'chunk': text,
+                        'done': False
+                    },
+                    user=frappe.session.user
+                )
+        
+        # Parse the complete response
+        code_changes = extract_code_changes(full_response, settings)
+        commands = extract_commands_from_message(full_response)
+        
+        # Add valid commands
+        for cmd in commands:
+            if cmd.get('command_code') and cmd.get('command_description'):
+                code_changes.append(cmd)
+        
+        # Save assistant message
+        assistant_doc = frappe.get_doc({
+            'doctype': 'Dev Chat Message',
+            'session': session_id,
+            'message_type': 'Assistant',
+            'message': full_response
+        })
+        
+        for change in code_changes:
+            assistant_doc.append('code_changes', change)
+        
+        assistant_doc.insert()
+        
+        # Send completion signal
+        frappe.publish_realtime(
+            event='claude_stream',
+            message={
+                'session_id': session_id,
+                'done': True,
+                'message_id': assistant_doc.name,
+                'code_changes': code_changes
+            },
+            user=frappe.session.user
+        )
+        
+        return {
+            'success': True,
+            'message': full_response,
+            'message_id': assistant_doc.name,
+            'code_changes': code_changes,
+            'streaming': True
+        }
+        
+    except Exception as e:
+        frappe.log_error(f"Streaming Error: {str(e)}")
+        frappe.publish_realtime(
+            event='claude_stream',
+            message={
+                'session_id': session_id,
+                'error': str(e),
+                'done': True
+            },
+            user=frappe.session.user
+        )
+        raise
+
+def send_message_no_stream(client, settings, system_prompt, history, session_id):
+    """Non-streaming fallback method"""
+    response = client.messages.create(
+        model=settings.claude_model or "claude-sonnet-4-5-20250929",
+        max_tokens=settings.max_tokens or 8096,
+        temperature=settings.temperature or 0.7,
+        system=system_prompt,
+        messages=history
+    )
+    
+    assistant_message = response.content[0].text
+    
+    # Parse code changes and commands
+    code_changes = extract_code_changes(assistant_message, settings)
+    commands = extract_commands_from_message(assistant_message)
+    
+    for cmd in commands:
+        if cmd.get('command_code') and cmd.get('command_description'):
+            code_changes.append(cmd)
+    
+    # Save assistant message
+    assistant_doc = frappe.get_doc({
+        'doctype': 'Dev Chat Message',
+        'session': session_id,
+        'message_type': 'Assistant',
+        'message': assistant_message
+    })
+    
+    for change in code_changes:
+        assistant_doc.append('code_changes', change)
+    
+    assistant_doc.insert()
+    
+    return {
+        'success': True,
+        'message': assistant_message,
+        'message_id': assistant_doc.name,
+        'code_changes': code_changes,
+        'streaming': False
+    }
 
 def get_code_context_for_message(message, target_app):
     """Analyze the message and gather relevant code context"""
