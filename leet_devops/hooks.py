@@ -10,8 +10,16 @@ app_email = "your.email@example.com"
 app_license = "MIT"
 
 # Includes in 
-app_include_css = "/assets/leet_devops/css/leet_devops.css"
-app_include_js = "/assets/leet_devops/js/leet_devops.js"
+app_include_css = [
+    "/assets/leet_devops/css/chat.css",
+    "/assets/leet_devops/css/leet_devops.css"
+]
+
+app_include_js = [
+    "/assets/leet_devops/js/chat.js",
+    "/assets/leet_devops/js/leet_devops.js"
+]
+
 
 # Home Pages
 # ----------
