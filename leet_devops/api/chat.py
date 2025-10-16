@@ -1,12 +1,7 @@
-"""
-leet_devops/leet_devops/api/chat.py
-Complete replacement with streaming + multi-doctype support
-"""
-
 import frappe
+import anthropic
 from anthropic import Anthropic
 import json
-import re
 from leet_devops.api.code_inspector import (
     get_app_structure, 
     get_similar_doctype_example, 
@@ -16,361 +11,56 @@ from leet_devops.api.code_inspector import (
 from leet_devops.api.path_utils import correct_file_path, to_snake_case
 from leet_devops.api.app_structure_detector import detect_app_structure
 
-# ============================================
-# MULTI-DOCTYPE DETECTION & SESSION CREATION
-# ============================================
-
-def detect_doctypes_in_message(message):
-    """Detect all DocTypes mentioned in the message"""
-    doctypes = []
-    
-    # Pattern 1: create doctype "Name" or create "Name" doctype
-    pattern1 = r'create\s+(?:doctype\s+["\']([^"\']+)["\']|["\']([^"\']+)["\']\s+doctype)'
-    matches1 = re.finditer(pattern1, message, re.IGNORECASE)
-    for match in matches1:
-        name = match.group(1) or match.group(2)
-        if name:
-            doctypes.append({
-                'name': name.strip(),
-                'action': 'create'
-            })
-    
-    # Pattern 2: Multiple doctypes in list format
-    pattern2 = r'create\s+([A-Z][a-zA-Z,\s]+(?:and\s+[A-Z][a-zA-Z\s]+)?)\s+doctype'
-    matches2 = re.finditer(pattern2, message, re.IGNORECASE)
-    for match in matches2:
-        names_str = match.group(1)
-        names = re.split(r',|\s+and\s+', names_str)
-        for name in names:
-            clean_name = name.strip()
-            if clean_name and len(clean_name) > 1:
-                doctypes.append({
-                    'name': clean_name,
-                    'action': 'create'
-                })
-    
-    # Pattern 3: modify/update patterns
-    pattern3 = r'(modify|update|edit)\s+(?:doctype\s+["\']([^"\']+)["\']|["\']([^"\']+)["\']\s+doctype)'
-    matches3 = re.finditer(pattern3, message, re.IGNORECASE)
-    for match in matches3:
-        name = match.group(2) or match.group(3)
-        if name:
-            doctypes.append({
-                'name': name.strip(),
-                'action': 'modify'
-            })
-    
-    # Remove duplicates
-    unique_doctypes = []
-    seen = set()
-    for dt in doctypes:
-        key = (dt['name'].lower(), dt['action'])
-        if key not in seen:
-            seen.add(key)
-            unique_doctypes.append(dt)
-    
-    return unique_doctypes
-
-def create_doctype_session(parent_session, doctype_name, action, target_app, original_message):
-    """Create a session for a specific doctype"""
-    session_name = f"{doctype_name} - {action.capitalize()}"
-    description = f"Auto-created from multi-doctype request. Action: {action}"
-    
-    session = frappe.get_doc({
-        'doctype': 'Dev Chat Session',
-        'session_name': session_name,
-        'description': description,
-        'status': 'Active',
-        'parent_session': parent_session,
-        'target_doctype': doctype_name,
-        'action_type': action
-    })
-    session.insert()
-    
-    context_message = generate_doctype_specific_prompt(
-        doctype_name, 
-        action, 
-        target_app, 
-        original_message
-    )
-    
-    context_doc = frappe.get_doc({
-        'doctype': 'Dev Chat Message',
-        'session': session.name,
-        'message_type': 'System',
-        'message': context_message
-    })
-    context_doc.insert()
-    
-    return session.name
-
-def generate_doctype_specific_prompt(doctype_name, action, target_app, original_message):
-    """Generate a focused prompt for a specific doctype"""
-    
-    if action == 'create':
-        prompt = f"""Focus: Create the "{doctype_name}" DocType
-
-Original Request Context:
-{original_message}
-
-Your Task:
-Create ONLY the "{doctype_name}" DocType with:
-1. Proper JSON schema definition
-2. Python controller with necessary methods
-3. JavaScript client-side code
-4. All required files following Frappe conventions
-
-Requirements:
-- Use snake_case for folder/file names: {doctype_name.lower().replace(' ', '_')}
-- Follow the app structure for {target_app}
-- Include proper naming series if applicable
-- Add validation and permissions
-- Create __init__.py file
-
-Do not create any other DocTypes. Focus solely on "{doctype_name}".
-"""
-    
-    elif action == 'modify':
-        doctype_info = get_doctype_info(doctype_name)
-        prompt = f"""Focus: Modify the "{doctype_name}" DocType
-
-Original Request Context:
-{original_message}
-
-Existing DocType Info:
-{json.dumps(doctype_info, indent=2) if doctype_info else "DocType not found - may need to create it"}
-
-Your Task:
-Modify ONLY the "{doctype_name}" DocType based on the requirements.
-
-Requirements:
-- Keep existing functionality unless explicitly asked to change
-- Make minimal, focused changes
-- Ensure backward compatibility where possible
-- Update only necessary files
-
-Do not modify any other DocTypes. Focus solely on "{doctype_name}".
-"""
-    
-    else:
-        prompt = f"""Focus: {action.capitalize()} the "{doctype_name}" DocType
-
-Original Request: {original_message}
-
-Work only on "{doctype_name}". Do not affect other DocTypes.
-"""
-    
-    return prompt
-
-# ============================================
-# STREAMING IMPLEMENTATION
-# ============================================
-
 @frappe.whitelist()
-def send_message(session_id, message, auto_detect_doctypes=True):
-    """Send message with streaming and auto multi-doctype detection"""
+def send_message(session_id, message):
+    """Send a message to Claude and get a response"""
     try:
         settings = frappe.get_single('Leet DevOps Settings')
         
         if not settings.claude_api_key:
-            return {'success': False, 'error': 'Claude API key not configured'}
+            return {
+                'success': False,
+                'error': 'Claude API key not configured. Please configure in Leet DevOps Settings.'
+            }
         
         if not settings.target_app:
-            return {'success': False, 'error': 'Target app not configured'}
+            return {
+                'success': False,
+                'error': 'Target app not configured. Please select a target app in Leet DevOps Settings.'
+            }
         
-        # Detect multiple doctypes
-        if auto_detect_doctypes:
-            doctypes = detect_doctypes_in_message(message)
-            
-            if len(doctypes) > 1:
-                return handle_multi_doctype_request(
-                    session_id, 
-                    message, 
-                    doctypes, 
-                    settings
-                )
-        
-        return send_single_message_stream(session_id, message, settings)
-        
-    except Exception as e:
-        frappe.log_error(f"Chat API Error: {str(e)}")
-        return {'success': False, 'error': str(e)}
-
-def handle_multi_doctype_request(parent_session, message, doctypes, settings):
-    """Handle request with multiple doctypes"""
-    created_sessions = []
-    
-    user_message = frappe.get_doc({
-        'doctype': 'Dev Chat Message',
-        'session': parent_session,
-        'message_type': 'User',
-        'message': message
-    })
-    user_message.insert()
-    
-    for dt_info in doctypes:
-        session_id = create_doctype_session(
-            parent_session,
-            dt_info['name'],
-            dt_info['action'],
-            settings.target_app,
-            message
-        )
-        
-        created_sessions.append({
-            'session_id': session_id,
-            'doctype_name': dt_info['name'],
-            'action': dt_info['action']
+        user_message = frappe.get_doc({
+            'doctype': 'Dev Chat Message',
+            'session': session_id,
+            'message_type': 'User',
+            'message': message
         })
+        user_message.insert()
         
-        frappe.enqueue(
-            'leet_devops.api.chat.process_doctype_session',
-            session_id=session_id,
-            settings=settings,
-            queue='default',
-            timeout=300
-        )
-    
-    summary = f"""Detected {len(doctypes)} DocTypes. Created separate sessions:
-
-{chr(10).join(f"• {dt['name']} ({dt['action']}) - Processing..." for dt in doctypes)}
-
-Each DocType will be processed in its dedicated session. Check individual sessions for progress.
-"""
-    
-    summary_doc = frappe.get_doc({
-        'doctype': 'Dev Chat Message',
-        'session': parent_session,
-        'message_type': 'Assistant',
-        'message': summary
-    })
-    summary_doc.insert()
-    
-    return {
-        'success': True,
-        'multi_doctype': True,
-        'message': summary,
-        'created_sessions': created_sessions
-    }
-
-def process_doctype_session(session_id, settings):
-    """Background job to process a doctype session"""
-    try:
-        messages = frappe.get_all(
-            'Dev Chat Message',
-            filters={'session': session_id},
-            fields=['message_type', 'message'],
-            order_by='timestamp asc'
-        )
-        
-        history = []
-        system_prompt = None
-        
-        for msg in messages:
-            if msg.message_type == 'System':
-                system_prompt = msg.message
-            else:
-                role = 'user' if msg.message_type == 'User' else 'assistant'
-                history.append({'role': role, 'content': msg.message})
-        
-        session = frappe.get_doc('Dev Chat Session', session_id)
-        
+        history = get_conversation_history(session_id)
         api_key = settings.get_password('claude_api_key')
         client = Anthropic(api_key=api_key)
         
-        code_context = get_code_context_for_message(
-            session.target_doctype, 
-            settings.target_app
-        )
+        code_context = get_code_context_for_message(message, settings.target_app)
+        system_prompt = get_system_prompt(settings, code_context)
         
-        if not system_prompt:
-            system_prompt = get_system_prompt(settings, code_context)
-        
-        focused_prompt = f"{system_prompt}\n\n**CRITICAL: Focus ONLY on {session.target_doctype} DocType. Do not create or modify any other DocTypes.**"
-        
-        stream_response(
-            client,
-            settings,
-            focused_prompt,
-            history,
-            session_id
-        )
-        
-    except Exception as e:
-        frappe.log_error(f"Doctype Session Error: {str(e)}")
-        frappe.publish_realtime(
-            event='claude_stream',
-            message={
-                'session_id': session_id,
-                'error': str(e),
-                'done': True
-            }
-        )
-
-def send_single_message_stream(session_id, message, settings):
-    """Send single message with streaming"""
-    user_message = frappe.get_doc({
-        'doctype': 'Dev Chat Message',
-        'session': session_id,
-        'message_type': 'User',
-        'message': message
-    })
-    user_message.insert()
-    
-    history = get_conversation_history(session_id)
-    api_key = settings.get_password('claude_api_key')
-    client = Anthropic(api_key=api_key)
-    
-    code_context = get_code_context_for_message(message, settings.target_app)
-    system_prompt = get_system_prompt(settings, code_context)
-    
-    return stream_response(
-        client,
-        settings,
-        system_prompt,
-        history,
-        session_id
-    )
-
-def stream_response(client, settings, system_prompt, history, session_id):
-    """Core streaming implementation"""
-    try:
-        full_response = ""
-        
-        frappe.publish_realtime(
-            event='claude_stream',
-            message={
-                'session_id': session_id,
-                'status': 'started',
-                'done': False
-            },
-            user=frappe.session.user
-        )
-        
-        with client.messages.stream(
+        response = client.messages.create(
             model=settings.claude_model or "claude-sonnet-4-5-20250929",
             max_tokens=settings.max_tokens or 8096,
             temperature=settings.temperature or 0.7,
             system=system_prompt,
             messages=history
-        ) as stream:
-            
-            for text in stream.text_stream:
-                full_response += text
-                
-                frappe.publish_realtime(
-                    event='claude_stream',
-                    message={
-                        'session_id': session_id,
-                        'chunk': text,
-                        'done': False
-                    },
-                    user=frappe.session.user
-                )
+        )
         
-        code_changes = extract_code_changes(full_response, settings)
-        commands = extract_commands_from_message(full_response)
+        assistant_message = response.content[0].text
         
+        # Parse code changes
+        code_changes = extract_code_changes(assistant_message, settings)
+        
+        # Parse commands
+        commands = extract_commands_from_message(assistant_message)
+        
+        # Only add valid commands (not null/empty)
         for cmd in commands:
             if cmd.get('command_code') and cmd.get('command_description'):
                 code_changes.append(cmd)
@@ -379,7 +69,7 @@ def stream_response(client, settings, system_prompt, history, session_id):
             'doctype': 'Dev Chat Message',
             'session': session_id,
             'message_type': 'Assistant',
-            'message': full_response
+            'message': assistant_message
         })
         
         for change in code_changes:
@@ -387,60 +77,19 @@ def stream_response(client, settings, system_prompt, history, session_id):
         
         assistant_doc.insert()
         
-        frappe.publish_realtime(
-            event='claude_stream',
-            message={
-                'session_id': session_id,
-                'done': True,
-                'message_id': assistant_doc.name,
-                'code_changes': code_changes
-            },
-            user=frappe.session.user
-        )
-        
         return {
             'success': True,
-            'message': full_response,
+            'message': assistant_message,
             'message_id': assistant_doc.name,
-            'code_changes': code_changes,
-            'streaming': True
+            'code_changes': code_changes
         }
         
     except Exception as e:
-        frappe.log_error(f"Streaming Error: {str(e)}")
-        frappe.publish_realtime(
-            event='claude_stream',
-            message={
-                'session_id': session_id,
-                'error': str(e),
-                'done': True
-            },
-            user=frappe.session.user
-        )
-        raise
-
-# ============================================
-# HELPER FUNCTIONS
-# ============================================
-
-def get_conversation_history(session_id):
-    """Get conversation history"""
-    messages = frappe.get_all(
-        'Dev Chat Message',
-        filters={
-            'session': session_id,
-            'message_type': ['in', ['User', 'Assistant']]
-        },
-        fields=['message_type', 'message'],
-        order_by='timestamp asc'
-    )
-    
-    history = []
-    for msg in messages:
-        role = 'user' if msg.message_type == 'User' else 'assistant'
-        history.append({'role': role, 'content': msg.message})
-    
-    return history
+        frappe.log_error(f"Chat API Error: {str(e)}")
+        return {
+            'success': False,
+            'error': str(e)
+        }
 
 def get_code_context_for_message(message, target_app):
     """Analyze the message and gather relevant code context"""
@@ -454,6 +103,8 @@ def get_code_context_for_message(message, target_app):
     example = get_similar_doctype_example(target_app)
     if example:
         context['example_doctype'] = example
+    
+    import re
     
     delete_pattern = r'delete.*?(doctype|dt).*?["\']?([A-Z][a-zA-Z\s]+)["\']?'
     modify_pattern = r'(modify|update|change|edit).*?(doctype|dt).*?["\']?([A-Z][a-zA-Z\s]+)["\']?'
@@ -509,6 +160,25 @@ def get_naming_examples(target_app):
                 examples['pages'].append(folder)
     
     return examples
+
+def get_conversation_history(session_id):
+    """Get conversation history for a session"""
+    messages = frappe.get_all(
+        'Dev Chat Message',
+        filters={'session': session_id},
+        fields=['message_type', 'message'],
+        order_by='timestamp asc'
+    )
+    
+    history = []
+    for msg in messages:
+        role = 'user' if msg.message_type == 'User' else 'assistant'
+        history.append({
+            'role': role,
+            'content': msg.message
+        })
+    
+    return history
 
 def get_system_prompt(settings, code_context):
     """Get the system prompt for Claude with code context"""
@@ -615,6 +285,7 @@ def extract_code_changes(message, settings):
     changes = []
     target_app = settings.target_app
     
+    import re
     pattern = r'```change\s+file_path:\s*(.+?)\s+change_type:\s*(create|modify|delete)\s*---\s*(.+?)```'
     matches = re.finditer(pattern, message, re.DOTALL)
     
@@ -623,6 +294,7 @@ def extract_code_changes(message, settings):
         change_type = match.group(2).strip().capitalize()
         code = match.group(3).strip()
         
+        # Correct path and remove duplicates
         file_path = correct_file_path(file_path, target_app)
         
         changes.append({
@@ -638,6 +310,7 @@ def extract_commands_from_message(message):
     """Extract command blocks from assistant message"""
     commands = []
     
+    import re
     pattern = r'```command\s+type:\s*(.+?)\s+description:\s*(.+?)\s*---\s*(.+?)```'
     matches = re.finditer(pattern, message, re.DOTALL | re.IGNORECASE)
     
@@ -646,6 +319,7 @@ def extract_commands_from_message(message):
         description = match.group(2).strip()
         code = match.group(3).strip()
         
+        # Skip if empty
         if not code or not description:
             continue
         
@@ -670,10 +344,6 @@ def extract_commands_from_message(message):
         })
     
     return commands
-
-# ============================================
-# API ENDPOINTS
-# ============================================
 
 @frappe.whitelist()
 def test_api_connection(api_key, model):
@@ -716,17 +386,6 @@ def get_messages(session_id):
         msg['code_changes'] = changes
     
     return messages
-
-@frappe.whitelist()
-def get_child_sessions(parent_session):
-    """Get all child sessions created from multi-doctype request"""
-    sessions = frappe.get_all(
-        'Dev Chat Session',
-        filters={'parent_session': parent_session},
-        fields=['name', 'session_name', 'target_doctype', 'action_type', 'status'],
-        order_by='creation asc'
-    )
-    return sessions
 
 @frappe.whitelist()
 def create_session(session_name, description=''):
