@@ -1,0 +1,113 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:MSG-{session}-{####}",
+ "creation": "2025-01-01 10:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "message_details_section",
+  "session",
+  "message_type",
+  "column_break_2",
+  "sender",
+  "timestamp",
+  "content_section",
+  "message_content",
+  "metadata_section",
+  "token_count",
+  "model_used"
+ ],
+ "fields": [
+  {
+   "fieldname": "message_details_section",
+   "fieldtype": "Section Break",
+   "label": "Message Details"
+  },
+  {
+   "fieldname": "session",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Session",
+   "options": "Generation Session",
+   "reqd": 1
+  },
+  {
+   "default": "User",
+   "fieldname": "message_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Message Type",
+   "options": "User\nAssistant\nSystem"
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "user",
+   "fieldname": "sender",
+   "fieldtype": "Data",
+   "label": "Sender"
+  },
+  {
+   "default": "Now",
+   "fieldname": "timestamp",
+   "fieldtype": "Datetime",
+   "label": "Timestamp"
+  },
+  {
+   "fieldname": "content_section",
+   "fieldtype": "Section Break",
+   "label": "Content"
+  },
+  {
+   "fieldname": "message_content",
+   "fieldtype": "Long Text",
+   "in_list_view": 1,
+   "label": "Message Content"
+  },
+  {
+   "fieldname": "metadata_section",
+   "fieldtype": "Section Break",
+   "label": "Metadata"
+  },
+  {
+   "fieldname": "token_count",
+   "fieldtype": "Int",
+   "label": "Token Count"
+  },
+  {
+   "fieldname": "model_used",
+   "fieldtype": "Data",
+   "label": "Model Used"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-01-01 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Leet DevOps",
+ "name": "Chat Message",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "timestamp",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 1
+}

@@ -1,126 +1,270 @@
 # Leet DevOps
 
-An AI-powered development assistant for Frappe Framework that integrates Claude AI directly into your Frappe dashboard.
+AI-powered DocType and Function Generator for Frappe Framework
+
+## Overview
+
+Leet DevOps is a Frappe custom app that leverages Claude AI to help developers generate DocTypes, functions, reports, and other artifacts for Frappe applications. It features an intelligent chat interface with session management, automatic child session creation, and streaming responses.
 
 ## Features
 
-- 🤖 **AI Assistant**: Chat with Claude AI to get development help
-- 💻 **Code Generation**: Generate DocTypes, API endpoints, and custom scripts
-- 🔄 **Change Preview**: See changes before applying them
-- ✅ **Apply/Revert**: Safely apply or revert code changes
-- 📝 **Session Management**: Organize your development conversations
-- 🎯 **Context-Aware**: Claude understands your Frappe setup
+### 1. **Settings Management**
+- Configure Claude API key
+- Set token limits and temperature
+- Define default target app
+- Select AI model (Claude Sonnet 4, Opus 4, etc.)
+
+### 2. **Intelligent Chat Interface**
+- Real-time streaming responses from Claude AI
+- Context-aware conversations
+- Session-based chat history
+- Automatic code generation
+
+### 3. **Session Management**
+- **Main Sessions**: Overall project planning and discussion
+- **Child Sessions**: Automatically created for specific artifacts
+  - DocType sessions
+  - Function/API sessions
+  - Report sessions
+  - Page sessions
+
+### 4. **Context Preservation**
+- Each session maintains its own context
+- Child sessions inherit parent session context
+- Automatic embedding of relevant information
+
+### 5. **Artifact Generation**
+- Complete DocType generation (JSON, Python, JS)
+- API endpoint creation
+- Report generation
+- Custom page creation
+- Proper file structure following Frappe conventions
 
 ## Installation
 
-1. Get the app:
-```bash
-cd ~/frappe-bench
-bench get-app https://github.com/yourusername/leet_devops
-```
+### Prerequisites
+- Frappe Framework (v14 or later)
+- Python 3.8+
+- Anthropic API key
 
-2. Install on your site:
-```bash
-bench --site your-site-name install-app leet_devops
-```
+### Steps
 
-3. Configure Claude API key:
-Add to your `site_config.json`:
-```json
-{
-  "claude_api_key": "sk-ant-..."
-}
-```
+1. **Get the app:**
+   ```bash
+   cd frappe-bench
+   bench get-app https://github.com/your-repo/leet_devops.git
+   ```
 
-4. Restart bench:
-```bash
-bench restart
-```
+2. **Install on site:**
+   ```bash
+   bench --site your-site.local install-app leet_devops
+   ```
+
+3. **Install Python dependencies:**
+   ```bash
+   bench pip install anthropic
+   ```
+
+4. **Restart bench:**
+   ```bash
+   bench restart
+   ```
+
+## Configuration
+
+1. Navigate to **DevOps Settings** (Settings > DevOps Settings)
+
+2. Configure the following:
+   - **Claude API Key**: Your Anthropic API key
+   - **Max Tokens**: Maximum tokens per response (default: 4096)
+   - **Model**: Select AI model (Claude Sonnet 4.5 recommended)
+   - **Temperature**: Response creativity (0-2, default: 1)
+   - **Target App Name**: Default Frappe app to generate code for
+   - **App Path**: Full path to the target app directory
 
 ## Usage
 
-1. Navigate to **Leet DevOps** module in your Frappe desk
-2. Create a new Dev Chat Session
-3. Start chatting with the AI assistant
-4. When code changes are suggested, review and apply them
-5. Test the changes in your environment
-6. Confirm to move the code to your custom app
+### Creating a New Session
 
-## Example Prompts
+1. Go to **Chat Interface** page
+2. Click **"New Session"**
+3. Enter:
+   - Session title
+   - Target app name
+   - Session type (Main for overall planning)
 
-- "Create a new DocType called 'Project Task' with fields for title, description, and status"
-- "Add a custom API endpoint to get all active customers"
-- "Create a client script to validate email format on Contact form"
-- "Help me create a report for monthly sales analysis"
+### Chatting with Claude
+
+1. Type your request in the chat input
+2. Press **Ctrl+Enter** or click **Send**
+3. Watch as Claude streams the response in real-time
+4. Claude will automatically:
+   - Analyze your requirements
+   - Create child sessions for specific artifacts
+   - Generate complete, production-ready code
+   - Provide implementation instructions
+
+### Working with Child Sessions
+
+1. Click **"Child Sessions"** button in the chat header
+2. View automatically created child sessions
+3. Open specific child sessions to focus on individual artifacts
+4. Each child session maintains focused context on its specific task
+
+### Example Workflows
+
+#### Creating a Custom DocType
+
+1. Create a main session: "Customer Portal Development"
+2. Ask Claude: "I need a Customer Feedback DocType with fields for rating, comments, and category"
+3. Claude will:
+   - Create a child session for "Customer Feedback DocType"
+   - Generate the JSON definition
+   - Create Python controller with validation
+   - Add JavaScript for client-side logic
+   - Provide installation instructions
+
+#### Building an API
+
+1. In your session, ask: "Create an API to calculate shipping costs based on weight and destination"
+2. Claude generates:
+   - Complete Python function with @frappe.whitelist()
+   - Error handling
+   - Documentation
+   - Usage examples
+
+## App Structure
+
+```
+leet_devops/
+├── leet_devops/
+│   ├── api/
+│   │   └── claude_api.py          # Claude API integration
+│   ├── config/
+│   │   └── desktop.py             # Workspace configuration
+│   ├── leet_devops/               # Main module
+│   │   ├── doctype/
+│   │   │   ├── devops_settings/   # Settings DocType
+│   │   │   ├── generation_session/ # Session management
+│   │   │   └── chat_message/      # Chat messages
+│   │   └── page/
+│   │       └── chat_interface/    # Chat UI
+│   └── public/
+│       ├── css/
+│       │   └── leet_devops.css   # Styles
+│       └── js/
+│           └── leet_devops.js    # Frontend logic
+├── requirements.txt
+└── setup.py
+```
+
+## DocTypes
+
+### DevOps Settings (Single)
+- API configuration
+- Model settings
+- Default app configuration
+
+### Generation Session
+- Session metadata
+- Context storage
+- Parent-child relationships
+- Artifact tracking
+
+### Chat Message
+- Message content
+- Sender information
+- Timestamps
+- Token usage tracking
+
+## API Methods
+
+### `claude_api.send_message`
+Send a message to Claude with streaming support
+- **Args**: session_id, message, stream
+- **Returns**: Message ID and content
+
+### `claude_api.create_session`
+Create a new generation session
+- **Args**: title, target_app, session_type, parent_session
+- **Returns**: Session ID
+
+### `claude_api.get_child_sessions`
+Get all child sessions for a parent
+- **Args**: parent_session_id
+- **Returns**: List of child sessions
+
+### `claude_api.get_session_messages`
+Get all messages in a session
+- **Args**: session_id
+- **Returns**: List of messages
+
+## Best Practices
+
+1. **Use Clear Session Titles**: Make them descriptive for easy navigation
+2. **Leverage Context**: Claude remembers the conversation within each session
+3. **Review Generated Code**: Always review and test generated artifacts
+4. **Utilize Child Sessions**: Let Claude automatically organize work into focused sessions
+5. **Set Appropriate Token Limits**: Higher limits for complex generations
+6. **Monitor API Usage**: Keep track of your Anthropic API usage
+
+## Troubleshooting
+
+### Streaming Not Working
+- Check browser console for WebSocket errors
+- Ensure Redis is running (required for realtime)
+- Verify API key is correct
+
+### No Response from Claude
+- Check DevOps Settings has valid API key
+- Verify network connectivity
+- Check Anthropic API status
+
+### Child Sessions Not Created
+- Ensure main session is active
+- Check that keywords (doctype, function, etc.) are mentioned
+- Review session context
 
 ## Development
 
-To contribute or modify:
-
+### Running Tests
 ```bash
-cd ~/frappe-bench/apps/leet_devops
-# Make your changes
-bench build
-bench restart
+bench --site your-site.local run-tests --app leet_devops
 ```
 
-## Security Notes
+### Contributing
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
 
-- Keep your Claude API key secure
-- Review all AI-generated code before applying
-- Test changes in development environment first
-- Always backup before applying changes to production
+## Security
+
+- API keys are stored encrypted in the database
+- Only System Manager role has access by default
+- All API calls are logged for audit purposes
 
 ## License
 
-MIT
-```
-
-### license.txt
-```
 MIT License
 
-Copyright (c) 2024
+## Support
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+For issues and questions:
+- GitHub Issues: [Your repo issues page]
+- Email: info@leetdevops.com
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+## Credits
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
+Built with:
+- [Frappe Framework](https://frappeframework.com/)
+- [Anthropic Claude](https://www.anthropic.com/)
 
-## Next Steps
+## Version History
 
-1. **Create the GitHub Repository**:
-   ```bash
-   cd ~/frappe-bench/apps
-   mkdir leet_devops
-   cd leet_devops
-   git init
-   # Copy all files from the structure above
-   git add .
-   git commit -m "Initial commit"
-   git remote add origin https://github.com/yourusername/leet_devops.git
-   git push -u origin main
-   ```
-
-2. **Install the App**:
-   Follow the installation instructions in the README
-
-3. **Configure Claude API**:
-   Add your API key to site_config.json
-
-4. **Start Using**:
-   Navigate to Leet DevOps module and start chatting!
+### 0.0.1 (Initial Release)
+- Basic chat interface
+- Session management
+- Claude API integration with streaming
+- Automatic child session creation
+- DevOps Settings configuration
