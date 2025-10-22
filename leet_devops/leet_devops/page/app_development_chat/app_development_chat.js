@@ -11,18 +11,71 @@ frappe.pages['app-development-chat'].on_page_load = function(wrapper) {
 	
 	// Get session from URL
 	const urlParams = new URLSearchParams(window.location.search);
-	const sessionName = urlParams.get('session');
+	let sessionName = urlParams.get('session');
+	
+	// Also try to get from hash if not in query string
+	if (!sessionName && window.location.hash) {
+		const hashParams = new URLSearchParams(window.location.hash.split('?')[1]);
+		sessionName = hashParams.get('session');
+	}
 
 	if (!sessionName) {
 		$(page.body).html(`
-			<div style="padding: 40px; text-align: center;">
+			<div style="padding: 40px;">
 				<h3>No Session Selected</h3>
 				<p>Please select an App Development Session to continue.</p>
-				<button class="btn btn-primary" onclick="frappe.set_route('List', 'App Development Session')">
-					Go to Sessions
+				
+				<div style="margin: 20px 0;">
+					<label style="display: block; margin-bottom: 10px;">Select Session:</label>
+					<select id="session-selector" class="form-control" style="max-width: 400px;">
+						<option value="">Loading sessions...</option>
+					</select>
+				</div>
+				
+				<button class="btn btn-primary" id="open-session-btn" disabled>
+					Open Session
 				</button>
+				
+				<p style="margin-top: 20px;">
+					<a href="/app/app-development-session">View All Sessions</a>
+				</p>
 			</div>
 		`);
+		
+		// Load available sessions
+		frappe.call({
+			method: 'frappe.client.get_list',
+			args: {
+				doctype: 'App Development Session',
+				fields: ['name', 'app_name', 'app_title'],
+				limit_page_length: 50,
+				order_by: 'modified desc'
+			},
+			callback: function(r) {
+				if (r.message && r.message.length > 0) {
+					let options = '<option value="">-- Select a session --</option>';
+					r.message.forEach(session => {
+						options += `<option value="${session.name}">${session.app_title || session.app_name} (${session.name})</option>`;
+					});
+					$('#session-selector').html(options);
+					
+					$('#session-selector').on('change', function() {
+						const selected = $(this).val();
+						$('#open-session-btn').prop('disabled', !selected);
+					});
+					
+					$('#open-session-btn').on('click', function() {
+						const selected = $('#session-selector').val();
+						if (selected) {
+							window.location.href = `/app/app-development-chat?session=${encodeURIComponent(selected)}`;
+						}
+					});
+				} else {
+					$('#session-selector').html('<option value="">No sessions found</option>');
+				}
+			}
+		});
+		
 		return;
 	}
 
