@@ -8,7 +8,14 @@ Leet DevOps is a Frappe custom app that leverages Claude AI to help developers g
 
 ## Features
 
-### 1. **Settings Management**
+### 1. **⚡ Automatic Code Application**
+- **One-Click Apply**: Generated code applied automatically
+- **No Manual Copy-Paste**: Files created in correct locations
+- **Auto-Migration**: Database changes applied automatically
+- **Preview Before Apply**: See what will change
+- **Zero Configuration**: Works out of the box
+
+### 2. **Settings Management**
 - Configure Claude API key
 - Set token limits and temperature
 - Define default target app
@@ -98,11 +105,18 @@ Leet DevOps is a Frappe custom app that leverages Claude AI to help developers g
 1. Type your request in the chat input
 2. Press **Ctrl+Enter** or click **Send**
 3. Watch as Claude streams the response in real-time
-4. Claude will automatically:
-   - Analyze your requirements
-   - Create child sessions for specific artifacts
-   - Generate complete, production-ready code
-   - Provide implementation instructions
+4. Click **Preview** to see what will be created
+5. Click **Apply Changes** to automatically implement
+6. Refresh browser to see your new DocType/Function!
+
+Claude will automatically:
+- Analyze your requirements
+- Create child sessions for specific artifacts
+- Generate complete, production-ready code
+- Structure code for automatic application
+- Provide implementation instructions
+
+**No more copy-pasting code!** Just click "Apply Changes" and it's done.
 
 ### Working with Child Sessions
 
@@ -122,7 +136,13 @@ Leet DevOps is a Frappe custom app that leverages Claude AI to help developers g
    - Generate the JSON definition
    - Create Python controller with validation
    - Add JavaScript for client-side logic
-   - Provide installation instructions
+4. Click **Preview** to review changes
+5. Click **Apply Changes** 
+6. Wait 30 seconds for migration
+7. Refresh browser
+8. Your DocType is ready! Go to Customer Feedback list
+
+**Total time: ~1 minute from idea to working DocType**
 
 #### Building an API
 
@@ -179,6 +199,8 @@ leet_devops/
 
 ## API Methods
 
+### Chat & Session Management
+
 ### `claude_api.send_message`
 Send a message to Claude with streaming support
 - **Args**: session_id, message, stream
@@ -198,6 +220,23 @@ Get all child sessions for a parent
 Get all messages in a session
 - **Args**: session_id
 - **Returns**: List of messages
+
+### Automatic Code Application
+
+### `code_applicator.parse_and_extract_artifacts`
+Extract code artifacts from a message
+- **Args**: message_id
+- **Returns**: List of extracted artifacts
+
+### `code_applicator.preview_artifacts`
+Preview what will be applied without applying
+- **Args**: message_id
+- **Returns**: List of previews
+
+### `code_applicator.apply_artifacts`
+Apply extracted artifacts to the target app
+- **Args**: session_id, message_id, artifacts_json
+- **Returns**: Application results
 
 ## Best Practices
 

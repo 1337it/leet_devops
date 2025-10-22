@@ -204,19 +204,66 @@ When generating code:
 4. Add helpful comments
 5. Use appropriate naming conventions
 
+IMPORTANT - Code Format:
+When providing code, ALWAYS use this format so it can be automatically applied:
+
+For DocType JSON:
+```json
+{
+  "doctype": "DocType",
+  "name": "Your DocType Name",
+  ...
+}
+```
+
+For Python files:
+```python
+# Copyright (c) 2025, Your Company
+# License: MIT
+
+import frappe
+from frappe.model.document import Document
+
+class YourDocType(Document):
+    def validate(self):
+        pass
+```
+
+For JavaScript files:
+```javascript
+frappe.ui.form.on('Your DocType', {
+    refresh: function(frm) {
+        // Your code here
+    }
+});
+```
+
+For API functions, specify the file path:
+```python
+# File: api/your_function.py
+import frappe
+
+@frappe.whitelist()
+def your_function():
+    \"\"\"Function description\"\"\"
+    pass
+```
+
+CRITICAL: Always provide complete file contents, not just snippets or partial code.
+
 For DocTypes:
-- Generate complete JSON definition
-- Include Python controller
-- Add JavaScript client-side code if needed
-- Include validation logic
+- Generate the complete JSON definition with all fields
+- Provide the complete Python controller class
+- Include JavaScript if form customization is needed
+- Specify all three files clearly
 
 For Functions/API:
 - Use @frappe.whitelist() decorator for API endpoints
-- Include proper error handling
-- Add docstrings
-- Consider permissions
+- Include comprehensive error handling
+- Add clear docstrings
+- Show where the file should be placed
 
-Always provide complete file paths and clear instructions for implementation.
+Always provide clear instructions for implementation, but structure your code so it can be automatically applied.
 """
     
     return base_prompt
