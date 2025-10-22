@@ -288,6 +288,84 @@ def create_doctype_session(session_name, doctype_name, doctype_definition=None):
 
 
 @frappe.whitelist()
+def scan_and_create_doctype_sessions(session_name):
+	"""
+	Scan conversation history and create DocType sessions for all found definitions
+	"""
+	try:
+		session = frappe.get_doc("App Development Session", session_name)
+		
+		# Get conversation history
+		try:
+			history = json.loads(session.conversation_history) if session.conversation_history else []
+		except:
+			history = []
+		
+		# Track existing DocType sessions
+		existing_doctypes = [dt.doctype_name for dt in session.doctype_sessions]
+		
+		# Scan for DocType definitions in conversation
+		found_doctypes = []
+		created_count = 0
+		
+		for msg in history:
+			if msg.get("role") == "assistant":
+				content = msg.get("content", "")
+				
+				# Look for JSON code blocks
+				import re
+				json_blocks = re.findall(r'```json\s*([\s\S]*?)```', content)
+				
+				for json_str in json_blocks:
+					try:
+						definition = json.loads(json_str)
+						
+						# Check if it's a DocType definition
+						if isinstance(definition, dict) and definition.get("doctype") == "DocType" and definition.get("name"):
+							doctype_name = definition["name"]
+							
+							# Check if not already exists
+							if doctype_name not in existing_doctypes and doctype_name not in found_doctypes:
+								found_doctypes.append(doctype_name)
+								
+								# Create session
+								session.append("doctype_sessions", {
+									"doctype_name": doctype_name,
+									"doctype_title": doctype_name.replace("_", " ").title(),
+									"status": "Draft",
+									"doctype_definition": json.dumps(definition, indent=2)
+								})
+								
+								created_count += 1
+					except:
+						continue
+		
+		if created_count > 0:
+			session.save()
+			frappe.db.commit()
+			
+			return {
+				"success": True,
+				"created": created_count,
+				"doctypes": found_doctypes,
+				"message": f"Created {created_count} DocType session(s): {', '.join(found_doctypes)}"
+			}
+		else:
+			return {
+				"success": True,
+				"created": 0,
+				"message": "No new DocType definitions found in conversation history"
+			}
+		
+	except Exception as e:
+		frappe.log_error(frappe.get_traceback(), "Scan DocType Sessions Error")
+		return {
+			"error": str(e),
+			"traceback": frappe.get_traceback()
+		}
+
+
+@frappe.whitelist()
 def apply_changes(session_name):
 	"""
 	Apply pending changes - create/modify files

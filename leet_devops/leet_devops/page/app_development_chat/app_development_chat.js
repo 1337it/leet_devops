@@ -316,6 +316,9 @@ frappe.pages['app-development-chat'].on_page_load = function(wrapper) {
 				<button class="btn btn-warning" id="verify-button">
 					Verify Files
 				</button>
+				<button class="btn btn-info" id="scan-button">
+					Scan & Create Sessions
+				</button>
 				<button class="btn btn-default" id="refresh-button">
 					Refresh
 				</button>
@@ -498,6 +501,7 @@ frappe.pages['app-development-chat'].on_page_load = function(wrapper) {
 		
 		$('#apply-button').off('click').on('click', applyChanges);
 		$('#verify-button').off('click').on('click', verifyFiles);
+		$('#scan-button').off('click').on('click', scanAndCreateSessions);
 		$('#refresh-button').off('click').on('click', loadSession);
 	}
 
@@ -696,6 +700,44 @@ frappe.pages['app-development-chat'].on_page_load = function(wrapper) {
 					}
 					showVerificationResults(r.message.results);
 					loadSession();
+				}
+			}
+		});
+	}
+
+	function scanAndCreateSessions() {
+		$('#scan-button').prop('disabled', true).text('Scanning...');
+		
+		frappe.call({
+			method: 'leet_devops.api.claude_api.scan_and_create_doctype_sessions',
+			args: {
+				session_name: currentSession.name
+			},
+			callback: function(r) {
+				$('#scan-button').prop('disabled', false).text('Scan & Create Sessions');
+				
+				if (r.message.error) {
+					frappe.msgprint({
+						title: 'Error',
+						indicator: 'red',
+						message: 'Scan error: ' + r.message.error
+					});
+				} else {
+					if (r.message.created > 0) {
+						frappe.msgprint({
+							title: 'Success',
+							indicator: 'green',
+							message: r.message.message + '<br><br>Created sessions for:<br>' + 
+								r.message.doctypes.map(d => '• ' + d).join('<br>')
+						});
+						loadSession(); // Reload to show new tabs
+					} else {
+						frappe.msgprint({
+							title: 'No New Sessions',
+							indicator: 'blue',
+							message: r.message.message
+						});
+					}
 				}
 			}
 		});
