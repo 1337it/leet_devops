@@ -13,6 +13,7 @@
   "column_break_1",
   "max_tokens",
   "temperature",
+  "timeout",
   "section_break_2",
   "default_app_name",
   "app_path"
@@ -58,6 +59,13 @@
    "fieldname": "temperature",
    "fieldtype": "Float",
    "label": "Temperature"
+  },
+  {
+   "default": "180",
+   "description": "Request timeout in seconds (default: 180 = 3 minutes)",
+   "fieldname": "timeout",
+   "fieldtype": "Int",
+   "label": "API Timeout (seconds)"
   },
   {
    "fieldname": "section_break_2",

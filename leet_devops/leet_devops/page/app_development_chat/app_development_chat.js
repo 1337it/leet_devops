@@ -508,10 +508,22 @@ frappe.pages['app-development-chat'].on_page_load = function(wrapper) {
 		if (!message) return;
 		
 		input.prop('disabled', true);
-		$('#send-button').prop('disabled', true).text('Sending...');
+		$('#send-button').prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Sending...');
 		
 		addMessageToUI('user', message);
 		input.val('');
+		
+		// Add a "thinking" indicator
+		const thinkingDiv = $(`
+			<div class="message assistant" id="thinking-message">
+				<div class="message-header">Claude AI</div>
+				<div class="message-content">
+					<i class="fa fa-circle-o-notch fa-spin"></i> Thinking... This may take up to 3 minutes for complex requests.
+				</div>
+			</div>
+		`);
+		$('#messages-container').append(thinkingDiv);
+		$('#messages-container').scrollTop($('#messages-container')[0].scrollHeight);
 		
 		frappe.call({
 			method: 'leet_devops.api.claude_api.send_message_to_claude',
@@ -521,6 +533,9 @@ frappe.pages['app-development-chat'].on_page_load = function(wrapper) {
 				doctype_session_name: currentDoctypeSession
 			},
 			callback: function(r) {
+				// Remove thinking indicator
+				$('#thinking-message').remove();
+				
 				input.prop('disabled', false);
 				$('#send-button').prop('disabled', false).text('Send');
 				
@@ -528,7 +543,7 @@ frappe.pages['app-development-chat'].on_page_load = function(wrapper) {
 					frappe.msgprint({
 						title: 'Error',
 						indicator: 'red',
-						message: r.message.error
+						message: r.message.error + (r.message.details ? '<br><br><small>' + r.message.details + '</small>' : '')
 					});
 				} else {
 					addMessageToUI('assistant', r.message.message);
@@ -539,12 +554,15 @@ frappe.pages['app-development-chat'].on_page_load = function(wrapper) {
 				input.focus();
 			},
 			error: function(err) {
+				// Remove thinking indicator
+				$('#thinking-message').remove();
+				
 				input.prop('disabled', false);
 				$('#send-button').prop('disabled', false).text('Send');
 				frappe.msgprint({
 					title: 'Error',
 					indicator: 'red',
-					message: 'Network error: ' + (err.message || 'Unknown error')
+					message: 'Network error: ' + (err.message || 'Unknown error') + '<br><br>This could be due to:<br>- Slow internet connection<br>- API timeout<br>- Network connectivity issues<br><br>Please try again.'
 				});
 			}
 		});

@@ -124,43 +124,82 @@ Remember:
 			"messages": messages
 		}
 		
-		response = requests.post(
-			settings.api_endpoint,
-			headers=headers,
-			json=payload,
-			timeout=60
-		)
+		# Retry logic with increased timeout
+		max_retries = 3
+		retry_count = 0
+		last_error = None
 		
-		if response.status_code != 200:
-			return {
-				"error": f"API Error: {response.status_code}",
-				"details": response.text
-			}
+		# Get timeout from settings, default to 180 seconds (3 minutes)
+		api_timeout = settings.timeout if hasattr(settings, 'timeout') and settings.timeout else 180
 		
-		result = response.json()
-		assistant_message = result["content"][0]["text"]
+		while retry_count < max_retries:
+			try:
+				response = requests.post(
+					settings.api_endpoint,
+					headers=headers,
+					json=payload,
+					timeout=api_timeout
+				)
+				
+				if response.status_code != 200:
+					return {
+						"error": f"API Error: {response.status_code}",
+						"details": response.text
+					}
+				
+				result = response.json()
+				assistant_message = result["content"][0]["text"]
+				
+				# Save messages to conversation history
+				if doctype_session_name:
+					# Update specific DocType session
+					for dt_sess in session.doctype_sessions:
+						if dt_sess.doctype_name == doctype_session_name:
+							dt_sess.add_message("user", message)
+							dt_sess.add_message("assistant", assistant_message)
+							break
+				else:
+					# Update main session
+					session.add_message("user", message)
+					session.add_message("assistant", assistant_message)
+				
+				session.save()
+				frappe.db.commit()
+				
+				return {
+					"success": True,
+					"message": assistant_message,
+					"usage": result.get("usage", {})
+				}
+				
+			except requests.exceptions.Timeout:
+				retry_count += 1
+				last_error = f"Request timeout (attempt {retry_count}/{max_retries})"
+				frappe.log_error(f"Claude API Timeout - Attempt {retry_count}", "Claude API Timeout")
+				
+				if retry_count < max_retries:
+					# Wait before retrying (exponential backoff)
+					import time
+					time.sleep(2 ** retry_count)  # 2, 4, 8 seconds
+					continue
+				else:
+					return {
+						"error": "Request timed out after multiple attempts. The API might be slow or overloaded. Please try again.",
+						"details": last_error
+					}
+					
+			except requests.exceptions.ConnectionError as e:
+				return {
+					"error": "Connection error. Please check your internet connection.",
+					"details": str(e)
+				}
+				
+			except requests.exceptions.RequestException as e:
+				return {
+					"error": "Network error occurred.",
+					"details": str(e)
+				}
 		
-		# Save messages to conversation history
-		if doctype_session_name:
-			# Update specific DocType session
-			for dt_sess in session.doctype_sessions:
-				if dt_sess.doctype_name == doctype_session_name:
-					dt_sess.add_message("user", message)
-					dt_sess.add_message("assistant", assistant_message)
-					break
-		else:
-			# Update main session
-			session.add_message("user", message)
-			session.add_message("assistant", assistant_message)
-		
-		session.save()
-		frappe.db.commit()
-		
-		return {
-			"success": True,
-			"message": assistant_message,
-			"usage": result.get("usage", {})
-		}
 		
 	except Exception as e:
 		frappe.log_error(frappe.get_traceback(), "Claude API Error")
