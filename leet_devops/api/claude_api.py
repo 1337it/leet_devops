@@ -1498,72 +1498,74 @@ class Test{doctype_name.replace(' ', '')}(unittest.TestCase):
 
 @frappe.whitelist()
 def verify_files(session_name):
-	"""
-	Verify that all expected files were created
-	"""
-	try:
-		settings = frappe.get_single("Claude API Settings")
-		session = frappe.get_doc("App Development Session", session_name)
-		
-		if not settings.app_path:
-			return {"error": "Apps path not configured"}
-		
-		app_path = os.path.join(settings.app_path, session.app_name)
-		verification_results = []
-		
-		session.verification_status = "Verifying"
-		session.save()
-		frappe.db.commit()
-		
-		for dt_sess in session.doctype_sessions:
-			doctype_name = dt_sess.doctype_name.lower().replace(" ", "_")
-			doctype_path = os.path.join(app_path, session.app_name, "doctype", doctype_name)
-			
-			expected_files = [
-				os.path.join(doctype_path, f"{doctype_name}.json"),
-				os.path.join(doctype_path, f"{doctype_name}.py"),
-				os.path.join(doctype_path, "__init__.py")
-			]
-			
-			doctype_result = {
-				"doctype": dt_sess.doctype_name,
-				"files": []
-			}
-			
-			for file_path in expected_files:
-				exists = os.path.exists(file_path)
-				doctype_result["files"].append({
-					"path": file_path,
-					"exists": exists,
-					"size": os.path.getsize(file_path) if exists else 0
-				})
-			
-			verification_results.append(doctype_result)
-		
-		all_verified = all(
-			all(f["exists"] for f in dr["files"])
-			for dr in verification_results
-		)
-		
-		session.verification_status = "Verified" if all_verified else "Failed"
-		session.verification_details = json.dumps(verification_results, indent=2)
-		session.save()
-		frappe.db.commit()
-		
-		return {
-			"success": True,
-			"verified": all_verified,
-			"results": verification_results
-		}
-		
-	except Exception as e:
-		session.verification_status = "Failed"
-		session.save()
-		frappe.db.commit()
-		frappe.log_error(frappe.get_traceback(), "Verification Error")
-		return {
-			"error": str(e)
-		}
+    """
+    Verify that all expected files were created
+    """
+    try:
+        settings = frappe.get_single("Claude API Settings")
+        session = frappe.get_doc("App Development Session", session_name)
+        
+        if not settings.app_path:
+            return {"error": "Apps path not configured"}
+        
+        app_path = os.path.join(settings.app_path, session.app_name)
+        
+        verification_results = []
+        
+        session.verification_status = "Verifying"
+        session.save()
+        frappe.db.commit()
+        
+        for dt_sess in session.doctype_sessions:
+            doctype_name = dt_sess.doctype_name.lower().replace(" ", "_")
+            # Fixed: Added session.app_name again for correct nesting
+            doctype_path = os.path.join(app_path, session.app_name, session.app_name, "doctype", doctype_name)
+            
+            expected_files = [
+                os.path.join(doctype_path, f"{doctype_name}.json"),
+                os.path.join(doctype_path, f"{doctype_name}.py"),
+                os.path.join(doctype_path, "__init__.py")
+            ]
+            
+            doctype_result = {
+                "doctype": dt_sess.doctype_name,
+                "files": []
+            }
+            
+            for file_path in expected_files:
+                exists = os.path.exists(file_path)
+                doctype_result["files"].append({
+                    "path": file_path,
+                    "exists": exists,
+                    "size": os.path.getsize(file_path) if exists else 0
+                })
+            
+            verification_results.append(doctype_result)
+        
+        all_verified = all(
+            all(f["exists"] for f in dr["files"])
+            for dr in verification_results
+        )
+        
+        session.verification_status = "Verified" if all_verified else "Failed"
+        session.verification_details = json.dumps(verification_results, indent=2)
+        session.save()
+        frappe.db.commit()
+        
+        return {
+            "success": True,
+            "verified": all_verified,
+            "results": verification_results
+        }
+        
+    except Exception as e:
+        session.verification_status = "Failed"
+        session.save()
+        frappe.db.commit()
+        frappe.log_error(frappe.get_traceback(), "Verification Error")
+        return {
+            "error": str(e)
+        }
 
 
 @frappe.whitelist()
