@@ -1,245 +1,232 @@
 frappe.pages['app-development-chat'].on_page_load = function(wrapper) {
+	frappe.pages['app-development-chat'].wrapper = wrapper;
+	
 	var page = frappe.ui.make_app_page({
 		parent: wrapper,
 		title: 'App Development Chat',
 		single_column: true
 	});
-
-	// Add custom CSS
-	const style = document.createElement('style');
-	style.textContent = `
-		.chat-container {
-			max-width: 100%;
-			padding: 20px;
-			background: #f9f9f9;
-		}
-		
-		.session-header {
-			background: white;
-			padding: 20px;
-			border-radius: 8px;
-			margin-bottom: 20px;
-			box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-		}
-		
-		.session-info {
-			display: grid;
-			grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-			gap: 15px;
-			margin-top: 15px;
-		}
-		
-		.info-card {
-			background: #f5f5f5;
-			padding: 10px;
-			border-radius: 4px;
-		}
-		
-		.info-label {
-			font-size: 12px;
-			color: #666;
-			text-transform: uppercase;
-			margin-bottom: 5px;
-		}
-		
-		.info-value {
-			font-size: 16px;
-			font-weight: 600;
-		}
-		
-		.doctype-tabs {
-			display: flex;
-			gap: 10px;
-			flex-wrap: wrap;
-			margin-bottom: 20px;
-		}
-		
-		.doctype-tab {
-			padding: 10px 20px;
-			background: white;
-			border: 2px solid #ddd;
-			border-radius: 4px;
-			cursor: pointer;
-			transition: all 0.3s;
-		}
-		
-		.doctype-tab:hover {
-			border-color: var(--primary-color);
-		}
-		
-		.doctype-tab.active {
-			background: var(--primary-color);
-			color: white;
-			border-color: var(--primary-color);
-		}
-		
-		.chat-area {
-			background: white;
-			border-radius: 8px;
-			padding: 20px;
-			margin-bottom: 20px;
-			box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-		}
-		
-		.messages-container {
-			max-height: 500px;
-			overflow-y: auto;
-			padding: 20px;
-			background: #fafafa;
-			border-radius: 8px;
-			margin-bottom: 20px;
-			min-height: 300px;
-		}
-		
-		.message {
-			margin-bottom: 15px;
-			padding: 12px;
-			border-radius: 8px;
-			animation: fadeIn 0.3s;
-		}
-		
-		@keyframes fadeIn {
-			from { opacity: 0; transform: translateY(10px); }
-			to { opacity: 1; transform: translateY(0); }
-		}
-		
-		.message.user {
-			background: #e3f2fd;
-			margin-left: 20%;
-		}
-		
-		.message.assistant {
-			background: #f5f5f5;
-			margin-right: 20%;
-		}
-		
-		.message-header {
-			font-weight: 600;
-			margin-bottom: 8px;
-			color: #666;
-			font-size: 12px;
-		}
-		
-		.message-content {
-			line-height: 1.6;
-			word-wrap: break-word;
-		}
-		
-		.message-content pre {
-			background: #2d2d2d;
-			color: #f8f8f2;
-			padding: 10px;
-			border-radius: 4px;
-			overflow-x: auto;
-			margin: 10px 0;
-		}
-		
-		.message-content code {
-			font-family: 'Courier New', monospace;
-			font-size: 13px;
-		}
-		
-		.input-area {
-			display: flex;
-			gap: 10px;
-			align-items: flex-end;
-		}
-		
-		.chat-input {
-			flex: 1;
-			padding: 12px;
-			border: 2px solid #ddd;
-			border-radius: 4px;
-			font-size: 14px;
-			font-family: inherit;
-			resize: vertical;
-			min-height: 80px;
-		}
-		
-		.chat-input:focus {
-			outline: none;
-			border-color: var(--primary-color);
-		}
-		
-		.action-buttons {
-			display: flex;
-			gap: 10px;
-			margin-top: 20px;
-		}
-		
-		.status-badge {
-			display: inline-block;
-			padding: 4px 12px;
-			border-radius: 12px;
-			font-size: 11px;
-			font-weight: 600;
-			margin-left: 8px;
-		}
-		
-		.status-active {
-			background: #e3f2fd;
-			color: #1976d2;
-		}
-		
-		.status-completed {
-			background: #e8f5e9;
-			color: #4caf50;
-		}
-		
-		.status-error {
-			background: #ffebee;
-			color: #f44336;
-		}
-		
-		.changes-preview {
-			background: white;
-			padding: 20px;
-			border-radius: 8px;
-			margin-top: 20px;
-			box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-			display: none;
-		}
-		
-		.change-item {
-			padding: 10px;
-			background: #f5f5f5;
-			border-radius: 4px;
-			margin-bottom: 10px;
-			font-size: 13px;
-		}
-		
-		.loading-spinner {
-			text-align: center;
-			padding: 20px;
-			color: #666;
-		}
-	`;
-	document.head.appendChild(style);
-
-	let currentSession = null;
-	let currentDoctypeSession = null;
-
+	
+	frappe.pages['app-development-chat'].page = page;
+	
 	// Get session from URL
 	const urlParams = new URLSearchParams(window.location.search);
 	const sessionName = urlParams.get('session');
 
 	if (!sessionName) {
-		page.$body.html(`
-			<div class="chat-container">
-				<div class="session-header">
-					<h3>No Session Selected</h3>
-					<p>Please select an App Development Session to continue.</p>
-					<button class="btn btn-primary" onclick="frappe.set_route('List', 'App Development Session')">
-						Go to Sessions
-					</button>
-				</div>
+		$(page.body).html(`
+			<div style="padding: 40px; text-align: center;">
+				<h3>No Session Selected</h3>
+				<p>Please select an App Development Session to continue.</p>
+				<button class="btn btn-primary" onclick="frappe.set_route('List', 'App Development Session')">
+					Go to Sessions
+				</button>
 			</div>
 		`);
 		return;
 	}
 
+	let currentSession = null;
+	let currentDoctypeSession = null;
+
 	// Build the page HTML
-	page.$body.html(`
+	$(page.body).html(`
+		<style>
+			.chat-container {
+				max-width: 100%;
+				padding: 20px;
+			}
+			
+			.session-header {
+				background: white;
+				padding: 20px;
+				border-radius: 8px;
+				margin-bottom: 20px;
+				box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+			}
+			
+			.session-info {
+				display: grid;
+				grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+				gap: 15px;
+				margin-top: 15px;
+			}
+			
+			.info-card {
+				background: #f5f5f5;
+				padding: 10px;
+				border-radius: 4px;
+			}
+			
+			.info-label {
+				font-size: 11px;
+				color: #666;
+				text-transform: uppercase;
+				margin-bottom: 5px;
+			}
+			
+			.info-value {
+				font-size: 15px;
+				font-weight: 600;
+			}
+			
+			.doctype-tabs {
+				display: flex;
+				gap: 10px;
+				flex-wrap: wrap;
+				margin-bottom: 20px;
+			}
+			
+			.doctype-tab {
+				padding: 10px 20px;
+				background: white;
+				border: 2px solid #ddd;
+				border-radius: 4px;
+				cursor: pointer;
+				transition: all 0.3s;
+			}
+			
+			.doctype-tab:hover {
+				border-color: var(--primary-color);
+			}
+			
+			.doctype-tab.active {
+				background: var(--primary-color);
+				color: white;
+				border-color: var(--primary-color);
+			}
+			
+			.chat-area {
+				background: white;
+				border-radius: 8px;
+				padding: 20px;
+				margin-bottom: 20px;
+				box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+			}
+			
+			.messages-container {
+				max-height: 500px;
+				overflow-y: auto;
+				padding: 20px;
+				background: #fafafa;
+				border-radius: 8px;
+				margin-bottom: 20px;
+				min-height: 300px;
+			}
+			
+			.message {
+				margin-bottom: 15px;
+				padding: 12px;
+				border-radius: 8px;
+				animation: fadeIn 0.3s;
+			}
+			
+			@keyframes fadeIn {
+				from { opacity: 0; transform: translateY(10px); }
+				to { opacity: 1; transform: translateY(0); }
+			}
+			
+			.message.user {
+				background: #e3f2fd;
+				margin-left: 20%;
+			}
+			
+			.message.assistant {
+				background: #f5f5f5;
+				margin-right: 20%;
+			}
+			
+			.message-header {
+				font-weight: 600;
+				margin-bottom: 8px;
+				color: #666;
+				font-size: 12px;
+			}
+			
+			.message-content {
+				line-height: 1.6;
+				word-wrap: break-word;
+			}
+			
+			.message-content pre {
+				background: #2d2d2d;
+				color: #f8f8f2;
+				padding: 10px;
+				border-radius: 4px;
+				overflow-x: auto;
+				margin: 10px 0;
+			}
+			
+			.input-area {
+				display: flex;
+				gap: 10px;
+				align-items: flex-end;
+			}
+			
+			.chat-input {
+				flex: 1;
+				padding: 12px;
+				border: 1px solid #d1d8dd;
+				border-radius: 4px;
+				font-size: 14px;
+				font-family: inherit;
+				resize: vertical;
+				min-height: 80px;
+			}
+			
+			.chat-input:focus {
+				outline: none;
+				border-color: var(--primary-color);
+			}
+			
+			.action-buttons {
+				display: flex;
+				gap: 10px;
+				margin-top: 20px;
+			}
+			
+			.status-badge {
+				display: inline-block;
+				padding: 3px 10px;
+				border-radius: 12px;
+				font-size: 10px;
+				font-weight: 600;
+				margin-left: 8px;
+			}
+			
+			.status-active {
+				background: #e3f2fd;
+				color: #1976d2;
+			}
+			
+			.status-completed {
+				background: #e8f5e9;
+				color: #4caf50;
+			}
+			
+			.status-error {
+				background: #ffebee;
+				color: #f44336;
+			}
+			
+			.changes-preview {
+				background: white;
+				padding: 20px;
+				border-radius: 8px;
+				margin-top: 20px;
+				box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+				display: none;
+			}
+			
+			.change-item {
+				padding: 10px;
+				background: #f5f5f5;
+				border-radius: 4px;
+				margin-bottom: 10px;
+				font-size: 13px;
+			}
+		</style>
+		
 		<div class="chat-container">
 			<div class="session-header">
 				<h3 id="session-title">Loading...</h3>
@@ -251,7 +238,9 @@ frappe.pages['app-development-chat'].on_page_load = function(wrapper) {
 			<div class="chat-area">
 				<h4 id="current-context">Main App Development</h4>
 				<div class="messages-container" id="messages-container">
-					<div class="loading-spinner">Loading conversation...</div>
+					<div style="text-align: center; padding: 20px; color: #666;">
+						Loading conversation...
+					</div>
 				</div>
 				
 				<div class="input-area">
@@ -262,20 +251,20 @@ frappe.pages['app-development-chat'].on_page_load = function(wrapper) {
 						rows="3"
 					></textarea>
 					<button class="btn btn-primary btn-lg" id="send-button">
-						<i class="fa fa-paper-plane"></i> Send
+						Send
 					</button>
 				</div>
 			</div>
 
 			<div class="action-buttons">
 				<button class="btn btn-success" id="apply-button">
-					<i class="fa fa-check"></i> Apply Changes
+					Apply Changes
 				</button>
 				<button class="btn btn-warning" id="verify-button">
-					<i class="fa fa-shield"></i> Verify Files
+					Verify Files
 				</button>
 				<button class="btn btn-default" id="refresh-button">
-					<i class="fa fa-refresh"></i> Refresh
+					Refresh
 				</button>
 			</div>
 
@@ -339,7 +328,7 @@ frappe.pages['app-development-chat'].on_page_load = function(wrapper) {
 	function renderDoctypeTabs() {
 		let tabs = `
 			<div class="doctype-tab active" data-doctype="">
-				<i class="fa fa-home"></i> Main App
+				Main App
 			</div>
 		`;
 		
@@ -347,7 +336,7 @@ frappe.pages['app-development-chat'].on_page_load = function(wrapper) {
 			currentSession.doctype_sessions.forEach(dt => {
 				tabs += `
 					<div class="doctype-tab" data-doctype="${dt.doctype_name}">
-						<i class="fa fa-file-text-o"></i> ${dt.doctype_title || dt.doctype_name}
+						${dt.doctype_title || dt.doctype_name}
 						<span class="status-badge ${getStatusClass(dt.status)}">${dt.status}</span>
 					</div>
 				`;
@@ -368,9 +357,9 @@ frappe.pages['app-development-chat'].on_page_load = function(wrapper) {
 		$(`.doctype-tab[data-doctype="${doctypeName}"]`).addClass('active');
 		
 		if (doctypeName) {
-			$('#current-context').html(`<i class="fa fa-file-text-o"></i> DocType: ${doctypeName}`);
+			$('#current-context').html(`DocType: ${doctypeName}`);
 		} else {
-			$('#current-context').html(`<i class="fa fa-home"></i> Main App Development`);
+			$('#current-context').html(`Main App Development`);
 		}
 		
 		loadConversationHistory();
@@ -401,7 +390,7 @@ frappe.pages['app-development-chat'].on_page_load = function(wrapper) {
 		if (history.length === 0) {
 			container.html(`
 				<div class="message assistant">
-					<div class="message-header"><i class="fa fa-robot"></i> Claude AI</div>
+					<div class="message-header">Claude AI</div>
 					<div class="message-content">
 						Hello! I'm here to help you develop your Frappe app. 
 						${currentDoctypeSession 
@@ -414,11 +403,10 @@ frappe.pages['app-development-chat'].on_page_load = function(wrapper) {
 			let html = '';
 			history.forEach(msg => {
 				const timestamp = msg.timestamp ? new Date(msg.timestamp).toLocaleString() : '';
-				const icon = msg.role === 'user' ? 'fa-user' : 'fa-robot';
 				html += `
 					<div class="message ${msg.role}">
 						<div class="message-header">
-							<i class="fa ${icon}"></i> ${msg.role === 'user' ? 'You' : 'Claude AI'}
+							${msg.role === 'user' ? 'You' : 'Claude AI'}
 							${timestamp ? `<span style="float: right; font-weight: normal;">${timestamp}</span>` : ''}
 						</div>
 						<div class="message-content">${formatMessage(msg.content)}</div>
@@ -446,18 +434,18 @@ frappe.pages['app-development-chat'].on_page_load = function(wrapper) {
 	}
 
 	function setupEventListeners() {
-		$('#send-button').on('click', sendMessage);
+		$('#send-button').off('click').on('click', sendMessage);
 		
-		$('#chat-input').on('keydown', function(e) {
+		$('#chat-input').off('keydown').on('keydown', function(e) {
 			if (e.key === 'Enter' && !e.shiftKey) {
 				e.preventDefault();
 				sendMessage();
 			}
 		});
 		
-		$('#apply-button').on('click', applyChanges);
-		$('#verify-button').on('click', verifyFiles);
-		$('#refresh-button').on('click', loadSession);
+		$('#apply-button').off('click').on('click', applyChanges);
+		$('#verify-button').off('click').on('click', verifyFiles);
+		$('#refresh-button').off('click').on('click', loadSession);
 	}
 
 	function sendMessage() {
@@ -467,7 +455,7 @@ frappe.pages['app-development-chat'].on_page_load = function(wrapper) {
 		if (!message) return;
 		
 		input.prop('disabled', true);
-		$('#send-button').prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Sending...');
+		$('#send-button').prop('disabled', true).text('Sending...');
 		
 		addMessageToUI('user', message);
 		input.val('');
@@ -481,7 +469,7 @@ frappe.pages['app-development-chat'].on_page_load = function(wrapper) {
 			},
 			callback: function(r) {
 				input.prop('disabled', false);
-				$('#send-button').prop('disabled', false).html('<i class="fa fa-paper-plane"></i> Send');
+				$('#send-button').prop('disabled', false).text('Send');
 				
 				if (r.message.error) {
 					frappe.msgprint({
@@ -499,11 +487,11 @@ frappe.pages['app-development-chat'].on_page_load = function(wrapper) {
 			},
 			error: function(err) {
 				input.prop('disabled', false);
-				$('#send-button').prop('disabled', false).html('<i class="fa fa-paper-plane"></i> Send');
+				$('#send-button').prop('disabled', false).text('Send');
 				frappe.msgprint({
 					title: 'Error',
 					indicator: 'red',
-					message: 'Network error: ' + err.message
+					message: 'Network error: ' + (err.message || 'Unknown error')
 				});
 			}
 		});
@@ -512,12 +500,11 @@ frappe.pages['app-development-chat'].on_page_load = function(wrapper) {
 	function addMessageToUI(role, content) {
 		const container = $('#messages-container');
 		const timestamp = new Date().toLocaleString();
-		const icon = role === 'user' ? 'fa-user' : 'fa-robot';
 		
 		const messageDiv = $(`
 			<div class="message ${role}">
 				<div class="message-header">
-					<i class="fa ${icon}"></i> ${role === 'user' ? 'You' : 'Claude AI'}
+					${role === 'user' ? 'You' : 'Claude AI'}
 					<span style="float: right; font-weight: normal;">${timestamp}</span>
 				</div>
 				<div class="message-content">${formatMessage(content)}</div>
@@ -576,7 +563,7 @@ frappe.pages['app-development-chat'].on_page_load = function(wrapper) {
 		frappe.confirm(
 			'This will create/modify files in your Frappe app. Continue?',
 			() => {
-				$('#apply-button').prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Applying...');
+				$('#apply-button').prop('disabled', true).text('Applying...');
 				
 				frappe.call({
 					method: 'leet_devops.api.claude_api.apply_changes',
@@ -584,7 +571,7 @@ frappe.pages['app-development-chat'].on_page_load = function(wrapper) {
 						session_name: currentSession.name
 					},
 					callback: function(r) {
-						$('#apply-button').prop('disabled', false).html('<i class="fa fa-check"></i> Apply Changes');
+						$('#apply-button').prop('disabled', false).text('Apply Changes');
 						
 						if (r.message.error) {
 							frappe.msgprint({
@@ -607,7 +594,7 @@ frappe.pages['app-development-chat'].on_page_load = function(wrapper) {
 	}
 
 	function verifyFiles() {
-		$('#verify-button').prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Verifying...');
+		$('#verify-button').prop('disabled', true).text('Verifying...');
 		
 		frappe.call({
 			method: 'leet_devops.api.claude_api.verify_files',
@@ -615,7 +602,7 @@ frappe.pages['app-development-chat'].on_page_load = function(wrapper) {
 				session_name: currentSession.name
 			},
 			callback: function(r) {
-				$('#verify-button').prop('disabled', false).html('<i class="fa fa-shield"></i> Verify Files');
+				$('#verify-button').prop('disabled', false).text('Verify Files');
 				
 				if (r.message.error) {
 					frappe.msgprint({
@@ -647,11 +634,9 @@ frappe.pages['app-development-chat'].on_page_load = function(wrapper) {
 		let html = '<h4>Changes Applied</h4>';
 		results.forEach(result => {
 			if (result.doctype) {
-				const icon = result.status === 'success' ? 'fa-check-circle' : 'fa-times-circle';
 				const color = result.status === 'success' ? 'green' : 'red';
 				html += `
 					<div class="change-item">
-						<i class="fa ${icon}" style="color: ${color}"></i>
 						<strong>${result.doctype}</strong>: ${result.status}
 						${result.files ? `<br><small>Files: ${result.files.join(', ')}</small>` : ''}
 						${result.error ? `<br><span style="color: red;">Error: ${result.error}</span>` : ''}
@@ -669,9 +654,8 @@ frappe.pages['app-development-chat'].on_page_load = function(wrapper) {
 		results.forEach(result => {
 			html += `<div class="change-item"><strong>${result.doctype}</strong><br>`;
 			result.files.forEach(file => {
-				const icon = file.exists ? 'fa-check' : 'fa-times';
 				const color = file.exists ? 'green' : 'red';
-				html += `<small><i class="fa ${icon}" style="color: ${color}"></i> ${file.path} (${file.size} bytes)</small><br>`;
+				html += `<small style="color: ${color};">${file.exists ? '✓' : '✗'} ${file.path} (${file.size} bytes)</small><br>`;
 			});
 			html += '</div>';
 		});
