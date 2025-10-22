@@ -35,7 +35,7 @@ def get_data():
             "items": [
                 {
                     "type": "page",
-                    "name": "app_chat",
+                    "name": "app-development-chat",
                     "label": _("App Development Chat"),
                     "description": _("Chat with Claude AI to develop apps")
                 }
