@@ -1,242 +1,228 @@
-# Leet DevOps - Quick Start Guide
+# Leet Devops - Quick Start Guide
 
-Get up and running with Leet DevOps in 5 minutes!
+Get up and running with Leet Devops in 5 minutes!
 
-## Prerequisites
+## Prerequisites Checklist
 
-- ✅ Frappe Framework installed
-- ✅ Anthropic API key ([Get one here](https://console.anthropic.com/))
+- [ ] Frappe Framework installed
+- [ ] A Frappe bench set up
+- [ ] Python 3.8 or higher
+- [ ] Claude API key from Anthropic
 
-## Installation (2 minutes)
+## Step-by-Step Installation
 
-### Option 1: Using Install Script
+### 1. Get Your Claude API Key (2 minutes)
+
+1. Go to https://console.anthropic.com/
+2. Sign up or log in
+3. Click on "API Keys"
+4. Click "Create Key"
+5. Copy your API key (starts with `sk-ant-api03-`)
+
+### 2. Install Leet Devops (2 minutes)
 
 ```bash
-cd frappe-bench
-bash /path/to/leet_devops/install.sh
-```
+# Navigate to your bench
+cd ~/frappe-bench
 
-Follow the prompts!
-
-### Option 2: Manual Installation
-
-```bash
-cd frappe-bench
+# Get the app
 bench get-app /path/to/leet_devops
-bench --site your-site.local install-app leet_devops
+
+# Install on your site (replace 'mysite' with your site name)
+bench --site mysite install-app leet_devops
+
+# Install required Python package
 bench pip install anthropic
+
+# Restart to apply changes
 bench restart
 ```
 
-## Configuration (1 minute)
+### 3. Configure Settings (1 minute)
 
-1. Login to your Frappe site
-2. Go to: **Settings → DevOps Settings**
-3. Add:
-   - **Claude API Key**: `sk-ant-...`
-   - **Target App Name**: Your app (e.g., `my_custom_app`)
+1. Open your Frappe site in browser
+2. Search for "Claude AI Settings" (use Awesome Bar: Ctrl+K)
+3. Fill in:
+   - **API Key**: Paste your Claude API key
+   - **Model**: Keep default (claude-sonnet-4-5-20250929)
+   - **Max Tokens**: Keep default (4096)
+   - **Temperature**: Keep default (0.7)
+   - **Working App Name**: Enter the app you want to work on
 4. Click **Save**
 
-## First Session (2 minutes)
+## Your First App Generation
 
-### Create Your First Session
+### Option A: Create a New App First
 
-1. Go to **Chat Interface**
-2. Click **"New Session"**
-3. Fill in:
-   ```
-   Title: My First DocType
-   Target App: my_custom_app
-   Session Type: Main
-   ```
-4. Click **"Create"**
+```bash
+# Create a new Frappe app
+bench new-app my_awesome_app
 
-### Generate Your First DocType
+# Install it on your site
+bench --site mysite install-app my_awesome_app
 
-Type this message:
-
-```
-Create a simple Task DocType with these fields:
-- Title (Data)
-- Description (Text Editor)
-- Status (Select: Open, In Progress, Completed)
-- Due Date (Date)
-- Priority (Select: Low, Medium, High)
+# Set it as working app in Claude AI Settings
 ```
 
-Press **Ctrl+Enter**
+### Option B: Use an Existing App
 
-### Watch the Magic! ✨
+Just enter the existing app name in Claude AI Settings.
 
-- Claude streams the response
-- Complete DocType JSON generated
-- Python controller included
-- JavaScript client script provided
-- Installation instructions given
+## Start Chatting with Claude
 
-### Implement the Code
+1. Search for "App Generator Chat" (Ctrl+K)
+2. Click **New Session**
+3. Enter a title: "My First App"
+4. Click **Create**
 
-1. Copy the JSON to: `apps/my_custom_app/my_custom_app/my_module/doctype/task/task.json`
-2. Copy the Python to: `apps/my_custom_app/my_custom_app/my_module/doctype/task/task.py`
-3. Run:
-   ```bash
-   bench --site your-site.local migrate
-   bench restart
-   ```
-4. Refresh your browser
-5. Go to **Task** list - it's there!
+### Try This Example
 
-## What's Next?
-
-### Try These Commands
-
-**Create an API:**
-```
-Create an API endpoint to get tasks by status with filters
-```
-
-**Generate a Report:**
-```
-Build a Task Summary Report showing:
-- Tasks by priority
-- Tasks by status
-- Overdue tasks
-Include date range filters
-```
-
-**Make a Dashboard:**
-```
-Create a Task Dashboard page with:
-- Task statistics
-- Priority breakdown chart
-- Recent tasks list
-```
-
-### Explore Features
-
-1. **Child Sessions**: Claude automatically creates focused sessions
-2. **Context Preservation**: Continue conversations naturally
-3. **Code Review**: Ask Claude to review and improve your code
-4. **Best Practices**: Get Frappe framework guidance
-
-## Common Commands
-
-### Generate DocType
-```
-Create a [Name] DocType with [fields]
-```
-
-### Generate Function
-```
-Write a function to [do something]
-```
-
-### Generate Report
-```
-Build a report showing [data] with [filters]
-```
-
-### Review Code
-```
-Review this code:
-[paste your code]
-```
-
-## Tips for Better Results
-
-1. **Be Specific**: More details = better code
-2. **Use Context**: Reference previous messages
-3. **Iterate**: Refine in multiple messages
-4. **Test**: Always test generated code
-5. **Customize**: Modify to fit your needs
-
-## Example Session Flow
+Type this in the chat:
 
 ```
-You: I'm building an inventory management system
+Create a simple Task Management app with:
 
-Claude: I'll help you create a comprehensive inventory system...
+1. Task DocType with fields:
+   - Title (required)
+   - Description
+   - Status (Select: Open, In Progress, Completed)
+   - Priority (Select: Low, Medium, High)
+   - Due Date
+   - Assigned To (Link to User)
 
-You: Start with a Product DocType
-
-Claude: [Generates Product DocType]
-       [Creates child session automatically]
-
-You: Now add a Stock Movement DocType
-
-Claude: [Generates Stock Movement DocType]
-       [Creates another child session]
-
-You: Create a function to check available stock
-
-Claude: [Generates stock check function]
-       [Adds to Functions child session]
+2. Make it simple and clean
 ```
 
-## Keyboard Shortcuts
+### What Happens Next
 
-- **Ctrl+Enter**: Send message
-- **Refresh**: Reload messages
+1. Claude will respond with a detailed plan
+2. DocType sessions will be created
+3. You'll see pending changes in the right sidebar
+4. Click **Apply Changes** to create the files
+5. Click **Verify Files** to confirm
 
-## Troubleshooting
+## Common First-Time Issues
 
-### No Response?
-- Check API key in settings
-- Verify internet connection
-- Check Anthropic console
+### Issue: "API Key Invalid"
 
-### Code Not Working?
-- Copy exactly as provided
-- Check file paths
-- Run `bench migrate`
-- Clear cache: `bench clear-cache`
+**Solution:**
+- Go to Anthropic console and regenerate key
+- Make sure you copied the entire key
+- Check for extra spaces
 
-### Can't Find Chat Interface?
-- URL: `http://your-site.local/app/chat-interface`
-- Or search "Chat Interface" in desk
+### Issue: "App Path Not Found"
 
-## Need Help?
+**Solution:**
+```bash
+# Verify your app exists
+ls ~/frappe-bench/apps/
 
-- 📖 Read: [User Guide](USER_GUIDE.md)
-- 🔧 Check: [Installation Guide](INSTALLATION_GUIDE.md)
-- 💡 Examples: [Examples](EXAMPLES.md)
-- 🐛 Report: [GitHub Issues](https://github.com/your-repo/issues)
-
-## Pro Tips
-
-### Batch Generation
-```
-Generate these 5 DocTypes:
-1. Customer
-2. Product
-3. Order
-4. Order Item
-5. Payment
-
-Link them with appropriate relationships
+# Make sure app name in settings matches exactly
 ```
 
-### Complex Workflows
-```
-Create an approval workflow for Leave Applications:
-- Employee submits
-- Manager approves/rejects
-- HR finalizes
-- Auto-email notifications
-```
+### Issue: "Permission Denied"
 
-### Integration
-```
-Create an API to integrate with [service]
-Include authentication and error handling
+**Solution:**
+```bash
+# Give proper permissions
+cd ~/frappe-bench/apps/
+chmod -R 755 your_app_name
 ```
 
-## Success! 🎉
+## Quick Commands Reference
 
-You're now ready to supercharge your Frappe development with AI!
+```bash
+# Clear cache if things seem stuck
+bench clear-cache
 
-Start simple, experiment, and let Claude help you build amazing things.
+# Migrate to apply changes
+bench migrate
+
+# Restart after changes
+bench restart
+
+# Check logs for errors
+tail -f ~/frappe-bench/logs/frappe.log
+
+# Open Python console for debugging
+bench console
+```
+
+## Next Steps
+
+Once you've created your first app:
+
+1. **Refine DocTypes**: Click on individual DocTypes to modify them
+2. **Add Features**: Ask Claude to add validations, custom scripts
+3. **Create More DocTypes**: Keep chatting to expand your app
+4. **Test**: Try creating records in your new DocTypes
+
+## Tips for Success
+
+1. **Be Specific**: The more details you give Claude, the better
+2. **Iterate**: Start simple, add complexity gradually
+3. **Review**: Always check pending changes before applying
+4. **Verify**: Use the verify button after applying changes
+5. **Learn**: Read the USER_GUIDE.md for advanced usage
+
+## Getting Help
+
+- **Check Logs**: `bench logs`
+- **Frappe Docs**: https://frappeframework.com/docs
+- **Anthropic Docs**: https://docs.anthropic.com
+- **Read USER_GUIDE.md** for detailed usage
+
+## Example Apps to Try
+
+### 1. Simple Blog
+```
+Create a Blog app with Post and Comment DocTypes
+```
+
+### 2. Inventory Tracker
+```
+Create an Inventory app with Item, Stock Entry, and Warehouse DocTypes
+```
+
+### 3. CRM Lite
+```
+Create a CRM with Lead, Opportunity, and Customer DocTypes
+```
+
+### 4. Event Manager
+```
+Create an Event Management app with Event, Ticket, and Attendee DocTypes
+```
+
+## Troubleshooting Checklist
+
+If something doesn't work:
+
+- [ ] API key is correct and active
+- [ ] App name matches exactly (case-sensitive)
+- [ ] App is installed on site (`bench list-apps`)
+- [ ] Bench is running (`bench start`)
+- [ ] Cache is cleared (`bench clear-cache`)
+- [ ] Migration completed (`bench migrate`)
+- [ ] Proper file permissions
+
+## Success Indicators
+
+You'll know it's working when:
+
+✅ Chat messages appear in the interface
+✅ Claude responds with detailed suggestions
+✅ DocType sessions are created automatically
+✅ Pending changes show files to create
+✅ Apply changes succeeds without errors
+✅ Verify files shows all green checkmarks
+✅ Your new DocTypes appear in the system
 
 ---
 
-**Remember**: Claude is your AI pair programmer. Treat it like a knowledgeable colleague - explain your needs, ask questions, iterate together!
+**Congratulations! You're ready to build amazing Frappe apps with AI! 🎉**
+
+For more advanced usage, check out:
+- USER_GUIDE.md - Detailed usage instructions
+- CONFIG_GUIDE.md - Configuration options
+- README.md - Full documentation

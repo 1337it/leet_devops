@@ -1,377 +1,517 @@
+# Copyright (c) 2025, Your Company and contributors
+# For license information, please see license.txt
+
 import frappe
+import requests
 import json
-from anthropic import Anthropic
+import os
+import subprocess
+from frappe import _
 
 @frappe.whitelist()
-def send_message(session_id, message, stream=True):
-    """
-    Send a message to Claude and get streaming response
-    """
-    try:
-        # Get settings
-        settings = frappe.get_single("DevOps Settings")
-        if not settings.claude_api_key:
-            frappe.throw("Claude API Key not configured")
-        
-        # Get session
-        session = frappe.get_doc("Generation Session", session_id)
-        
-        # Create user message
-        user_msg = frappe.get_doc({
-            "doctype": "Chat Message",
-            "session": session_id,
-            "message_type": "User",
-            "sender": frappe.session.user,
-            "message_content": message
-        })
-        user_msg.insert(ignore_permissions=True)
-        
-        # Get conversation history
-        messages = get_conversation_history(session_id)
-        messages.append({
-            "role": "user",
-            "content": message
-        })
-        
-        # Initialize Anthropic client
-        client = Anthropic(api_key=settings.get_password("claude_api_key"))
-        
-        # Prepare system prompt with context
-        system_prompt = prepare_system_prompt(session)
-        
-        if stream:
-            return stream_claude_response(client, messages, system_prompt, settings, session_id)
-        else:
-            return get_claude_response(client, messages, system_prompt, settings, session_id)
-            
-    except Exception as e:
-        frappe.log_error(frappe.get_traceback(), "Claude API Error")
-        frappe.throw(str(e))
+def send_message_to_claude(session_name, message, doctype_session_name=None):
+	"""
+	Send a message to Claude API and get response
+	
+	Args:
+		session_name: Name of the App Development Session
+		message: User's message
+		doctype_session_name: Optional - specific DocType Session to chat with
+	"""
+	try:
+		# Get API settings
+		settings = frappe.get_single("Claude API Settings")
+		if not settings.api_key:
+			return {"error": "Claude API Key not configured"}
+		
+		# Get session
+		session = frappe.get_doc("App Development Session", session_name)
+		
+		# Build conversation history for Claude
+		history = session.get_conversation_history()
+		
+		# Prepare system prompt based on context
+		if doctype_session_name:
+			# Get specific DocType session
+			doctype_session = None
+			for dt_sess in session.doctype_sessions:
+				if dt_sess.doctype_name == doctype_session_name:
+					doctype_session = dt_sess
+					break
+			
+			if not doctype_session:
+				return {"error": f"DocType Session {doctype_session_name} not found"}
+			
+			system_prompt = f"""You are a Frappe framework expert helping to develop the DocType: {doctype_session.doctype_name}.
 
+Current DocType Definition:
+{doctype_session.doctype_definition or 'Not yet defined'}
 
-def stream_claude_response(client, messages, system_prompt, settings, session_id):
-    """
-    Stream response from Claude
-    """
-    try:
-        # Create assistant message placeholder
-        assistant_msg = frappe.get_doc({
-            "doctype": "Chat Message",
-            "session": session_id,
-            "message_type": "Assistant",
-            "sender": "Claude",
-            "message_content": "",
-            "model_used": settings.model
-        })
-        assistant_msg.insert(ignore_permissions=True)
-        
-        full_response = ""
-        
-        # Stream the response
-        with client.messages.stream(
-            model=settings.model,
-            max_tokens=settings.max_tokens,
-            temperature=settings.temperature,
-            system=system_prompt,
-            messages=messages
-        ) as stream:
-            for text in stream.text_stream:
-                full_response += text
-                # Yield for real-time streaming
-                frappe.publish_realtime(
-                    event="claude_response",
-                    message={
-                        "session_id": session_id,
-                        "message_id": assistant_msg.name,
-                        "content": text,
-                        "done": False
-                    },
-                    user=frappe.session.user
-                )
-        
-        # Update the message with full response
-        assistant_msg.message_content = full_response
-        assistant_msg.save(ignore_permissions=True)
-        
-        # Send completion signal
-        frappe.publish_realtime(
-            event="claude_response",
-            message={
-                "session_id": session_id,
-                "message_id": assistant_msg.name,
-                "content": full_response,
-                "done": True
-            },
-            user=frappe.session.user
-        )
-        
-        # Analyze response for artifacts
-        analyze_and_create_child_sessions(session_id, full_response)
-        
-        return {"success": True, "message_id": assistant_msg.name}
-        
-    except Exception as e:
-        frappe.log_error(frappe.get_traceback(), "Claude Streaming Error")
-        raise
+Previous conversation about this DocType:
+{doctype_session.conversation_history or 'No previous conversation'}
 
+Your role:
+1. Help modify and improve this specific DocType
+2. Provide the complete updated JSON definition when changes are requested
+3. Explain your changes clearly
+4. Consider Frappe best practices for field types, naming, and structure
 
-def get_claude_response(client, messages, system_prompt, settings, session_id):
-    """
-    Get non-streaming response from Claude
-    """
-    try:
-        response = client.messages.create(
-            model=settings.model,
-            max_tokens=settings.max_tokens,
-            temperature=settings.temperature,
-            system=system_prompt,
-            messages=messages
-        )
-        
-        content = response.content[0].text
-        
-        # Create assistant message
-        assistant_msg = frappe.get_doc({
-            "doctype": "Chat Message",
-            "session": session_id,
-            "message_type": "Assistant",
-            "sender": "Claude",
-            "message_content": content,
-            "model_used": settings.model,
-            "token_count": response.usage.output_tokens
-        })
-        assistant_msg.insert(ignore_permissions=True)
-        
-        # Analyze response for artifacts
-        analyze_and_create_child_sessions(session_id, content)
-        
-        return {
-            "success": True,
-            "message_id": assistant_msg.name,
-            "content": content
-        }
-        
-    except Exception as e:
-        frappe.log_error(frappe.get_traceback(), "Claude API Error")
-        raise
+Always respond with valid Frappe DocType JSON when providing definitions."""
+		else:
+			# Main session - app level conversation
+			system_prompt = f"""You are a Frappe framework expert helping to develop a custom app called: {session.app_name}
 
+App Description:
+{session.description or 'No description yet'}
 
-def get_conversation_history(session_id):
-    """
-    Get conversation history for a session
-    """
-    messages = frappe.get_all(
-        "Chat Message",
-        filters={"session": session_id},
-        fields=["message_type", "message_content"],
-        order_by="timestamp asc"
-    )
-    
-    conversation = []
-    for msg in messages:
-        role = "user" if msg.message_type == "User" else "assistant"
-        conversation.append({
-            "role": role,
-            "content": msg.message_content
-        })
-    
-    return conversation
+Current DocTypes in this app:
+{', '.join([dt.doctype_name for dt in session.doctype_sessions]) if session.doctype_sessions else 'None yet'}
 
+Your role:
+1. Help design and architect the Frappe application
+2. Create DocType definitions when requested
+3. Suggest improvements and best practices
+4. For each DocType, provide:
+   - Complete JSON definition following Frappe standards
+   - Clear explanation of the structure
+   - Suggestions for related DocTypes if needed
 
-def prepare_system_prompt(session):
-    """
-    Prepare system prompt with session context
-    """
-    base_prompt = f"""You are an expert Frappe framework developer helping to generate DocTypes, functions, and other artifacts for Frappe applications.
-
-Target App: {session.target_app}
-Session Type: {session.session_type}
-"""
-    
-    if session.session_context:
-        base_prompt += f"\n\nSession Context:\n{session.session_context}"
-    
-    if session.parent_session:
-        parent = frappe.get_doc("Generation Session", session.parent_session)
-        base_prompt += f"\n\nParent Session Context:\n{parent.session_context}"
-    
-    base_prompt += """
-
-When generating code:
-1. Follow Frappe framework best practices
-2. Generate complete, production-ready code
-3. Include proper error handling
-4. Add helpful comments
-5. Use appropriate naming conventions
-
-IMPORTANT - Code Format:
-When providing code, ALWAYS use this format so it can be automatically applied:
-
-For DocType JSON:
+When creating a new DocType, always provide the complete JSON definition in this format:
 ```json
-{
+{{
   "doctype": "DocType",
   "name": "Your DocType Name",
-  ...
-}
+  "module": "Leet Devops",
+  "fields": [
+    // field definitions
+  ],
+  // other properties
+}}
 ```
 
-For Python files:
-```python
-# Copyright (c) 2025, Your Company
-# License: MIT
+Remember:
+- Use proper Frappe field types (Data, Text, Link, Select, etc.)
+- Include appropriate field properties (reqd, in_list_view, etc.)
+- Follow naming conventions (snake_case for fieldnames)
+- Consider relationships between DocTypes"""
+		
+		# Prepare messages for Claude API
+		messages = []
+		for msg in history[-10:]:  # Last 10 messages for context
+			messages.append({
+				"role": msg["role"],
+				"content": msg["content"]
+			})
+		
+		# Add current message
+		messages.append({
+			"role": "user",
+			"content": message
+		})
+		
+		# Call Claude API
+		headers = {
+			"x-api-key": settings.get_password("api_key"),
+			"anthropic-version": "2023-06-01",
+			"content-type": "application/json"
+		}
+		
+		payload = {
+			"model": settings.model,
+			"max_tokens": settings.max_tokens,
+			"temperature": settings.temperature,
+			"system": system_prompt,
+			"messages": messages
+		}
+		
+		response = requests.post(
+			settings.api_endpoint,
+			headers=headers,
+			json=payload,
+			timeout=60
+		)
+		
+		if response.status_code != 200:
+			return {
+				"error": f"API Error: {response.status_code}",
+				"details": response.text
+			}
+		
+		result = response.json()
+		assistant_message = result["content"][0]["text"]
+		
+		# Save messages to conversation history
+		if doctype_session_name:
+			# Update specific DocType session
+			for dt_sess in session.doctype_sessions:
+				if dt_sess.doctype_name == doctype_session_name:
+					dt_sess.add_message("user", message)
+					dt_sess.add_message("assistant", assistant_message)
+					break
+		else:
+			# Update main session
+			session.add_message("user", message)
+			session.add_message("assistant", assistant_message)
+		
+		session.save()
+		frappe.db.commit()
+		
+		return {
+			"success": True,
+			"message": assistant_message,
+			"usage": result.get("usage", {})
+		}
+		
+	except Exception as e:
+		frappe.log_error(frappe.get_traceback(), "Claude API Error")
+		return {
+			"error": str(e),
+			"traceback": frappe.get_traceback()
+		}
+
+
+@frappe.whitelist()
+def parse_doctype_from_response(response_text):
+	"""
+	Parse DocType JSON definition from Claude's response
+	"""
+	try:
+		# Try to extract JSON from code blocks
+		import re
+		json_match = re.search(r'```json\s*(.*?)\s*```', response_text, re.DOTALL)
+		
+		if json_match:
+			json_str = json_match.group(1)
+			doctype_def = json.loads(json_str)
+			return {
+				"success": True,
+				"doctype_definition": doctype_def
+			}
+		
+		# Try direct JSON parsing
+		try:
+			doctype_def = json.loads(response_text)
+			return {
+				"success": True,
+				"doctype_definition": doctype_def
+			}
+		except:
+			pass
+		
+		return {
+			"success": False,
+			"message": "No valid JSON definition found in response"
+		}
+		
+	except Exception as e:
+		return {
+			"success": False,
+			"error": str(e)
+		}
+
+
+@frappe.whitelist()
+def create_doctype_session(session_name, doctype_name, doctype_definition=None):
+	"""
+	Create a new DocType session
+	"""
+	try:
+		session = frappe.get_doc("App Development Session", session_name)
+		
+		# Check if DocType session already exists
+		for dt_sess in session.doctype_sessions:
+			if dt_sess.doctype_name == doctype_name:
+				return {
+					"error": f"DocType session for {doctype_name} already exists"
+				}
+		
+		# Add new DocType session
+		session.append("doctype_sessions", {
+			"doctype_name": doctype_name,
+			"doctype_title": doctype_name.replace("_", " ").title(),
+			"status": "Draft",
+			"doctype_definition": json.dumps(doctype_definition, indent=2) if doctype_definition else None
+		})
+		
+		session.save()
+		frappe.db.commit()
+		
+		return {
+			"success": True,
+			"message": f"DocType session created for {doctype_name}"
+		}
+		
+	except Exception as e:
+		frappe.log_error(frappe.get_traceback(), "Create DocType Session Error")
+		return {
+			"error": str(e)
+		}
+
+
+@frappe.whitelist()
+def apply_changes(session_name):
+	"""
+	Apply pending changes - create/modify files
+	"""
+	try:
+		settings = frappe.get_single("Claude API Settings")
+		session = frappe.get_doc("App Development Session", session_name)
+		
+		if not settings.app_path:
+			return {"error": "Apps path not configured in settings"}
+		
+		app_path = os.path.join(settings.app_path, session.app_name)
+		results = []
+		
+		# Update session status
+		session.status = "Applying Changes"
+		session.save()
+		frappe.db.commit()
+		
+		# Process each DocType session
+		for dt_sess in session.doctype_sessions:
+			if not dt_sess.doctype_definition:
+				continue
+			
+			try:
+				doctype_def = json.loads(dt_sess.doctype_definition)
+				doctype_name = dt_sess.doctype_name
+				
+				# Create DocType directory
+				doctype_path = os.path.join(
+					app_path,
+					session.app_name,
+					"doctype",
+					doctype_name.lower().replace(" ", "_")
+				)
+				os.makedirs(doctype_path, exist_ok=True)
+				
+				# Create JSON file
+				json_file = os.path.join(doctype_path, f"{doctype_name.lower().replace(' ', '_')}.json")
+				with open(json_file, 'w') as f:
+					json.dump(doctype_def, f, indent=2)
+				
+				# Log file creation
+				frappe.get_doc({
+					"doctype": "File Change Log",
+					"session_reference": session_name,
+					"app_name": session.app_name,
+					"operation_type": "Create",
+					"file_path": json_file,
+					"file_type": "JSON",
+					"file_content": json.dumps(doctype_def, indent=2),
+					"status": "Applied"
+				}).insert()
+				
+				# Create Python file
+				py_file = os.path.join(doctype_path, f"{doctype_name.lower().replace(' ', '_')}.py")
+				py_content = f"""# Copyright (c) 2025, Your Company and contributors
+# For license information, please see license.txt
 
 import frappe
 from frappe.model.document import Document
 
-class YourDocType(Document):
-    def validate(self):
-        pass
-```
-
-For JavaScript files:
-```javascript
-frappe.ui.form.on('Your DocType', {
-    refresh: function(frm) {
-        // Your code here
-    }
-});
-```
-
-For API functions, specify the file path:
-```python
-# File: api/your_function.py
-import frappe
-
-@frappe.whitelist()
-def your_function():
-    \"\"\"Function description\"\"\"
-    pass
-```
-
-CRITICAL: Always provide complete file contents, not just snippets or partial code.
-
-For DocTypes:
-- Generate the complete JSON definition with all fields
-- Provide the complete Python controller class
-- Include JavaScript if form customization is needed
-- Specify all three files clearly
-
-For Functions/API:
-- Use @frappe.whitelist() decorator for API endpoints
-- Include comprehensive error handling
-- Add clear docstrings
-- Show where the file should be placed
-
-Always provide clear instructions for implementation, but structure your code so it can be automatically applied.
+class {doctype_name.replace(' ', '')}(Document):
+	pass
 """
-    
-    return base_prompt
-
-
-def analyze_and_create_child_sessions(session_id, response_content):
-    """
-    Analyze Claude's response and automatically create child sessions for doctypes/functions mentioned
-    """
-    session = frappe.get_doc("Generation Session", session_id)
-    
-    # Only create child sessions for main sessions
-    if session.session_type != "Main":
-        return
-    
-    # Simple keyword detection for now
-    # In a production system, you might want to use more sophisticated NLP
-    keywords = {
-        "DocType": ["doctype", "document type", "create doctype"],
-        "Function": ["function", "api endpoint", "method"],
-        "Report": ["report", "create report"],
-        "Page": ["page", "custom page"]
-    }
-    
-    response_lower = response_content.lower()
-    
-    for session_type, triggers in keywords.items():
-        for trigger in triggers:
-            if trigger in response_lower:
-                # Extract potential names (simplified)
-                # This is a basic implementation - enhance as needed
-                create_child_session_if_needed(session_id, session_type, session.target_app)
-                break
-
-
-def create_child_session_if_needed(parent_session_id, session_type, target_app):
-    """
-    Create a child session for a specific artifact type
-    """
-    # Check if similar child session already exists
-    existing = frappe.get_all(
-        "Generation Session",
-        filters={
-            "parent_session": parent_session_id,
-            "session_type": session_type,
-            "status": "Active"
-        },
-        limit=1
-    )
-    
-    if not existing:
-        child_session = frappe.get_doc({
-            "doctype": "Generation Session",
-            "title": f"{session_type} Generation",
-            "target_app": target_app,
-            "session_type": session_type,
-            "parent_session": parent_session_id,
-            "status": "Active",
-            "session_context": f"This session is for generating {session_type} artifacts."
-        })
-        child_session.insert(ignore_permissions=True)
-        frappe.db.commit()
-
-
-@frappe.whitelist()
-def get_session_messages(session_id):
-    """
-    Get all messages for a session
-    """
-    messages = frappe.get_all(
-        "Chat Message",
-        filters={"session": session_id},
-        fields=["name", "message_type", "sender", "message_content", "timestamp"],
-        order_by="timestamp asc"
-    )
-    
-    return messages
+				with open(py_file, 'w') as f:
+					f.write(py_content)
+				
+				# Log Python file
+				frappe.get_doc({
+					"doctype": "File Change Log",
+					"session_reference": session_name,
+					"app_name": session.app_name,
+					"operation_type": "Create",
+					"file_path": py_file,
+					"file_type": "Python",
+					"file_content": py_content,
+					"status": "Applied"
+				}).insert()
+				
+				# Create __init__.py
+				init_file = os.path.join(doctype_path, "__init__.py")
+				with open(init_file, 'w') as f:
+					f.write("")
+				
+				dt_sess.status = "Applied"
+				results.append({
+					"doctype": doctype_name,
+					"status": "success",
+					"files": [json_file, py_file, init_file]
+				})
+				
+			except Exception as e:
+				results.append({
+					"doctype": dt_sess.doctype_name,
+					"status": "error",
+					"error": str(e)
+				})
+		
+		# Run bench migrate
+		try:
+			migrate_result = run_migrate(session.app_name)
+			results.append({
+				"operation": "migrate",
+				"status": "success" if migrate_result["success"] else "error",
+				"output": migrate_result.get("output", "")
+			})
+		except Exception as e:
+			results.append({
+				"operation": "migrate",
+				"status": "error",
+				"error": str(e)
+			})
+		
+		session.status = "Completed"
+		session.pending_changes = json.dumps(results, indent=2)
+		session.save()
+		frappe.db.commit()
+		
+		return {
+			"success": True,
+			"results": results
+		}
+		
+	except Exception as e:
+		session.status = "Error"
+		session.save()
+		frappe.db.commit()
+		frappe.log_error(frappe.get_traceback(), "Apply Changes Error")
+		return {
+			"error": str(e),
+			"traceback": frappe.get_traceback()
+		}
 
 
 @frappe.whitelist()
-def create_session(title, target_app, session_type="Main", parent_session=None):
-    """
-    Create a new generation session
-    """
-    session = frappe.get_doc({
-        "doctype": "Generation Session",
-        "title": title,
-        "target_app": target_app,
-        "session_type": session_type,
-        "parent_session": parent_session,
-        "status": "Active"
-    })
-    session.insert(ignore_permissions=True)
-    frappe.db.commit()
-    
-    return session.name
+def verify_files(session_name):
+	"""
+	Verify that all expected files were created
+	"""
+	try:
+		settings = frappe.get_single("Claude API Settings")
+		session = frappe.get_doc("App Development Session", session_name)
+		
+		if not settings.app_path:
+			return {"error": "Apps path not configured"}
+		
+		app_path = os.path.join(settings.app_path, session.app_name)
+		verification_results = []
+		
+		session.verification_status = "Verifying"
+		session.save()
+		frappe.db.commit()
+		
+		for dt_sess in session.doctype_sessions:
+			doctype_name = dt_sess.doctype_name.lower().replace(" ", "_")
+			doctype_path = os.path.join(app_path, session.app_name, "doctype", doctype_name)
+			
+			expected_files = [
+				os.path.join(doctype_path, f"{doctype_name}.json"),
+				os.path.join(doctype_path, f"{doctype_name}.py"),
+				os.path.join(doctype_path, "__init__.py")
+			]
+			
+			doctype_result = {
+				"doctype": dt_sess.doctype_name,
+				"files": []
+			}
+			
+			for file_path in expected_files:
+				exists = os.path.exists(file_path)
+				doctype_result["files"].append({
+					"path": file_path,
+					"exists": exists,
+					"size": os.path.getsize(file_path) if exists else 0
+				})
+			
+			verification_results.append(doctype_result)
+		
+		all_verified = all(
+			all(f["exists"] for f in dr["files"])
+			for dr in verification_results
+		)
+		
+		session.verification_status = "Verified" if all_verified else "Failed"
+		session.verification_details = json.dumps(verification_results, indent=2)
+		session.save()
+		frappe.db.commit()
+		
+		return {
+			"success": True,
+			"verified": all_verified,
+			"results": verification_results
+		}
+		
+	except Exception as e:
+		session.verification_status = "Failed"
+		session.save()
+		frappe.db.commit()
+		frappe.log_error(frappe.get_traceback(), "Verification Error")
+		return {
+			"error": str(e)
+		}
 
 
 @frappe.whitelist()
-def get_child_sessions(parent_session_id):
-    """
-    Get all child sessions for a parent session
-    """
-    children = frappe.get_all(
-        "Generation Session",
-        filters={"parent_session": parent_session_id},
-        fields=["name", "title", "session_type", "status", "modified"],
-        order_by="creation asc"
-    )
-    
-    return children
+def run_migrate(app_name=None):
+	"""
+	Run bench migrate for the app
+	"""
+	try:
+		cmd = ["bench", "migrate"]
+		if app_name:
+			cmd.extend(["--app", app_name])
+		
+		result = subprocess.run(
+			cmd,
+			capture_output=True,
+			text=True,
+			timeout=300
+		)
+		
+		return {
+			"success": result.returncode == 0,
+			"output": result.stdout,
+			"error": result.stderr
+		}
+		
+	except Exception as e:
+		return {
+			"success": False,
+			"error": str(e)
+		}
+
+
+@frappe.whitelist()
+def get_app_list():
+	"""
+	Get list of installed Frappe apps
+	"""
+	try:
+		settings = frappe.get_single("Claude API Settings")
+		if not settings.app_path:
+			return {"error": "Apps path not configured"}
+		
+		apps = []
+		app_path = settings.app_path
+		
+		if os.path.exists(app_path):
+			for item in os.listdir(app_path):
+				item_path = os.path.join(app_path, item)
+				if os.path.isdir(item_path):
+					# Check if it's a Frappe app (has hooks.py)
+					hooks_file = os.path.join(item_path, item, "hooks.py")
+					if os.path.exists(hooks_file):
+						apps.append(item)
+		
+		return {
+			"success": True,
+			"apps": apps
+		}
+		
+	except Exception as e:
+		return {
+			"error": str(e)
+		}

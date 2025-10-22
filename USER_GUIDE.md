@@ -1,465 +1,364 @@
-# Leet DevOps - User Guide
+# Leet Devops - User Guide
 
-## Table of Contents
+## How to Effectively Use Claude for App Generation
 
-1. [Getting Started](#getting-started)
-2. [Creating Sessions](#creating-sessions)
-3. [Chat Interface](#chat-interface)
-4. [Working with Child Sessions](#working-with-child-sessions)
-5. [Generating Code](#generating-code)
-6. [Best Practices](#best-practices)
-7. [Examples](#examples)
+This guide will help you get the most out of Leet Devops by teaching you how to communicate effectively with Claude AI.
 
-## Getting Started
+## Understanding the System
 
-### First Login
+### Session Structure
 
-1. Navigate to your Frappe site
-2. Go to **Chat Interface** page from the desk
-   - Or visit: `http://your-site.local/app/chat-interface`
+**Main Session**
+- Your primary conversation with Claude about the overall app
+- Used for high-level design decisions
+- Creates the initial app structure
+- Generates DocType specifications
 
-### Understanding the Interface
+**DocType Sessions (Child Sessions)**
+- Dedicated conversations for specific DocTypes
+- Fine-tune individual DocType details
+- Modify fields, add validations, adjust permissions
+- Each DocType has its own context and conversation history
 
-The Chat Interface has three main areas:
+### Workflow
 
-1. **Header**: Shows session title and actions
-2. **Messages Area**: Displays conversation history
-3. **Input Area**: Where you type messages
+1. **Start Main Session** → Describe your app requirements
+2. **Claude Generates Plan** → Review DocType suggestions
+3. **DocType Sessions Created** → Each DocType gets a child session
+4. **Refine DocTypes** → Click on DocTypes to chat about specific ones
+5. **Review Changes** → Check pending file operations
+6. **Apply Changes** → Create files and run migrations
+7. **Verify** → Confirm all files were created successfully
 
-## Creating Sessions
+## Communication Best Practices
 
-### Main Session
+### 1. Start with a Clear Vision
 
-Main sessions are for overall project planning and coordination.
-
-**To Create:**
-1. Click **"New Session"** button
-2. Fill in:
-   - **Title**: "Customer Portal Development"
-   - **Target App**: "my_custom_app"
-   - **Session Type**: "Main"
-3. Click **"Create"**
-
-### Child Sessions
-
-Child sessions are automatically created by Claude when specific artifacts are discussed. Types:
-
-- **DocType**: For creating document types
-- **Function**: For API endpoints and utilities
-- **Report**: For custom reports
-- **Page**: For custom pages
-
-**Automatic Creation:**
-Claude analyzes your conversation and creates child sessions when you mention:
-- "create a doctype"
-- "build a function"
-- "make a report"
-- "design a page"
-
-## Chat Interface
-
-### Sending Messages
-
-**Method 1: Click Send**
-1. Type your message
-2. Click the **Send** button
-
-**Method 2: Keyboard Shortcut**
-1. Type your message
-2. Press **Ctrl+Enter**
-
-### Message Types
-
-- **User Messages**: Appear on the right (blue)
-- **Assistant Messages**: Appear on the left (white)
-- **Streaming Messages**: Show with a blue border while Claude is typing
-
-### Streaming Responses
-
-Claude's responses stream in real-time:
-1. You see a typing indicator (●●●)
-2. Text appears character by character
-3. Response completes and formatting applies
-
-## Working with Child Sessions
-
-### Viewing Child Sessions
-
-1. Click **"Child Sessions"** button in header
-2. See all child sessions with:
-   - Title
-   - Type badge (DocType, Function, etc.)
-   - Last modified time
-   - Status
-
-### Opening Child Sessions
-
-1. In the Child Sessions dialog
-2. Click **"Open"** on any session
-3. Opens the session in a new view
-
-### Context Inheritance
-
-Child sessions automatically inherit:
-- Parent session context
-- Target app information
-- Previous conversation history (relevant parts)
-
-## Generating Code
-
-### DocType Generation
-
-**Example Request:**
+❌ **Bad:**
 ```
-Create a Customer Feedback DocType with these fields:
-- Customer (Link to Customer)
-- Rating (Select: 1-5 stars)
-- Feedback Text (Text Editor)
-- Category (Select: Product, Service, Support)
-- Status (Select: New, Reviewed, Closed)
+Make me an app
 ```
 
-**Claude Will Provide:**
-1. Complete JSON definition
-2. Python controller with validation
-3. JavaScript for client-side logic
-4. Installation instructions
-5. Best practices
-
-### API Function Generation
-
-**Example Request:**
+✅ **Good:**
 ```
-Create an API function to calculate delivery charges based on:
-- Weight (in kg)
-- Distance (in km)
-- Express delivery flag
-
-Base rate: $5
-Per kg: $2
-Per km: $0.5
-Express: 50% surcharge
+I need a Restaurant Management app with the following features:
+- Menu management (dishes, categories, prices)
+- Order tracking (table numbers, order items, status)
+- Customer reservations
+- Inventory management for ingredients
 ```
 
-**Claude Will Provide:**
-1. Python function with @frappe.whitelist()
-2. Input validation
-3. Error handling
-4. Documentation
-5. Usage examples
+### 2. Be Specific About DocTypes
 
-### Report Generation
-
-**Example Request:**
+❌ **Bad:**
 ```
-Create a Sales Summary Report showing:
-- Date range filter
-- Total sales by customer
-- Payment status breakdown
-- Export to Excel option
+Add some fields to Customer
 ```
 
-**Claude Will Provide:**
-1. Report JSON definition
-2. Python query logic
-3. JavaScript for filters
-4. Formatting options
-
-## Best Practices
-
-### 1. Be Specific
-
-❌ **Poor**: "Make a customer thing"
-✅ **Good**: "Create a Customer Feedback DocType with rating and comments fields"
-
-### 2. Provide Context
-
-Include information about:
-- Business requirements
-- Field types needed
-- Validation rules
-- Relationships to other DocTypes
-
-### 3. Use Multiple Messages
-
-Instead of one huge message, break it down:
-
-**Message 1:**
+✅ **Good:**
 ```
-I need a Task Management system
+For the Customer DocType, add:
+- Customer Type (Select: Regular, VIP, Corporate)
+- Credit Limit (Currency)
+- Payment Terms (Select: Cash, 30 Days, 60 Days)
+- Loyalty Points (Int, default 0, read-only)
+Make Credit Limit required only if Customer Type is Corporate.
 ```
 
-**Message 2:**
+### 3. Specify Field Properties
+
+❌ **Bad:**
 ```
-Each task should have:
-- Title
-- Description
-- Priority (High, Medium, Low)
-- Assigned to (User)
-- Due date
+Add email and phone
 ```
 
-**Message 3:**
+✅ **Good:**
 ```
-Add a status workflow: New → In Progress → Completed
-```
-
-### 4. Review Generated Code
-
-Always:
-- Read through generated code
-- Test in development environment
-- Modify as needed for your use case
-- Add additional validation if required
-
-### 5. Leverage Child Sessions
-
-- Use child sessions for focused work
-- Keep related code in the same child session
-- Switch between sessions as needed
-
-### 6. Save Important Code
-
-Copy generated code to your app immediately:
-1. Create the files in your app directory
-2. Run bench migrate
-3. Test thoroughly
-
-## Examples
-
-### Example 1: E-commerce Product Catalog
-
-**Session Setup:**
-- Title: "E-commerce Product Management"
-- Target App: "ecommerce_app"
-
-**Conversation:**
-
-**User:**
-```
-I need to build a product catalog system. Let's start with the Product DocType.
+Add these fields:
+- Email Address (Data, required, unique, with email validation)
+- Phone Number (Data, optional, format: +XX-XXX-XXX-XXXX)
+- Alternative Phone (Data, optional)
 ```
 
-**Claude:**
-```
-I'll help you create a comprehensive Product DocType. Let me design this with 
-e-commerce best practices in mind.
+### 4. Request Relationships Clearly
 
-[Provides complete Product DocType JSON and code]
+❌ **Bad:**
 ```
-
-**User:**
-```
-Now I need a Product Category DocType with hierarchical categories.
+Connect orders to customers
 ```
 
-**Claude:**
+✅ **Good:**
 ```
-I'll create a Product Category DocType with tree structure support...
-[Creates child session automatically]
-[Provides Category DocType with tree view]
-```
-
-### Example 2: Inventory Management
-
-**Session Setup:**
-- Title: "Warehouse Management System"
-- Target App: "warehouse_app"
-
-**Conversation:**
-
-**User:**
-```
-Create a Stock Entry DocType for tracking inventory movements.
+Create a Link field in the Order DocType:
+- Field name: customer
+- Links to: Customer
+- Required: Yes
+- Fetch customer's email and phone for quick reference
 ```
 
-**Claude:**
-```
-I'll create a Stock Entry DocType with the following structure:
-[Provides detailed Stock Entry DocType]
-```
+### 5. Ask for Child Tables
 
-**User:**
+❌ **Bad:**
 ```
-Add a function to check available stock for an item in a specific warehouse.
+Orders should have items
 ```
 
-**Claude:**
+✅ **Good:**
 ```
-[Creates child session for Function]
-I'll create a utility function for stock availability...
-[Provides complete function with error handling]
-```
-
-### Example 3: HR Management
-
-**Session Setup:**
-- Title: "HR Management Portal"
-- Target App: "hr_app"
-
-**Conversation Flow:**
-1. Create Employee DocType
-2. Create Leave Application DocType
-3. Create approval workflow function
-4. Create leave balance report
-5. Create employee dashboard page
-
-Each item automatically gets its own child session for focused development.
-
-## Tips and Tricks
-
-### Keyboard Shortcuts
-
-- **Ctrl+Enter**: Send message
-- **Esc**: Clear input (custom implementation)
-
-### Markdown Support
-
-Claude's responses support basic markdown:
-- `code` for inline code
-- ``` blocks for code blocks
-- **bold** text
-- Links and more
-
-### Copy Code Easily
-
-- Hover over code blocks
-- Look for copy button (if implemented)
-- Or select and copy manually
-
-### Session Organization
-
-**Naming Convention:**
-- Main: "[Project Name] - Main"
-- Child: "[Artifact Name] - [Type]"
-
-Example:
-- "CRM System - Main"
-- "Lead DocType - DocType"
-- "Lead Assignment - Function"
-
-### Context Management
-
-Add context at the start:
-```
-Context: I'm building a multi-tenant SaaS application with role-based access.
-Target users: B2B customers with team features.
+Create an Order Items child table with:
+- Item Name (Link to Item)
+- Quantity (Int, default 1)
+- Rate (Currency, fetch from Item)
+- Amount (Currency, read-only, calculated as Quantity * Rate)
+- Notes (Text, optional)
 ```
 
-Claude will remember this throughout the session.
+## Example Conversations
 
-## Common Use Cases
+### Example 1: Creating a Simple App
 
-### 1. Creating Standard Forms
-- Customer forms
-- Product catalogs
-- Invoice templates
-- User profiles
+**You:**
+```
+Create a Library Management app with:
+1. Book DocType: title, author, ISBN, status (Available/Borrowed)
+2. Member DocType: name, email, phone, membership date
+3. Borrowing DocType: member, book, borrow date, return date
+```
 
-### 2. Building APIs
-- REST endpoints
-- Data validation
-- Third-party integrations
-- Webhook handlers
+**Claude Response:**
+```
+I'll create a Library Management app with three DocTypes:
 
-### 3. Report Generation
-- Sales reports
-- Analytics dashboards
-- KPI trackers
-- Export functionality
+1. Book DocType...
+[Detailed specifications]
 
-### 4. Workflow Automation
-- Approval workflows
-- Email notifications
-- Status transitions
-- Automated tasks
+2. Member DocType...
+[Detailed specifications]
 
-### 5. Custom Pages
-- Dashboards
-- Admin panels
-- User portals
-- Analytics views
+3. Borrowing DocType...
+[Detailed specifications]
 
-## Troubleshooting
+I'll now create the DocType sessions for each of these.
+```
 
-### Message Not Sending
+**What Happens:**
+- Three DocType sessions are created
+- You can click on each to refine them
+- Files are prepared for creation
 
-**Check:**
-- API key configured
-- Internet connection
-- Token limits not exceeded
+### Example 2: Refining a DocType
 
-### No Response from Claude
+**In Book DocType Session:**
 
-**Try:**
-- Refresh page
-- Check API credits
-- Verify API key validity
+**You:**
+```
+Add these features to Book:
+- Publication Year (Int)
+- Category (Select: Fiction, Non-Fiction, Reference, Children)
+- Shelf Location (Data)
+- Cover Image (Attach Image)
+- Make ISBN unique and required
+```
 
-### Code Not Working
+**Claude Response:**
+```
+I'll update the Book DocType with these fields...
+[Shows updated JSON]
+```
 
-**Steps:**
-1. Copy exact code from Claude
-2. Check file paths
-3. Run migrate
-4. Restart bench
-5. Clear cache
+### Example 3: Adding Validations
 
-### Session Lost
+**You:**
+```
+In the Borrowing DocType:
+- Validate that return date is after borrow date
+- Automatically set status to 'Borrowed' when saved
+- Check if book is available before allowing borrowing
+```
 
-**Recovery:**
-- Check Recent Sessions on home page
-- Use session search
-- Child sessions remain linked
+**Claude Response:**
+```
+I'll add these validations to the Borrowing DocType...
+[Provides Python code for validation]
+```
 
 ## Advanced Features
 
-### Custom Prompts
+### 1. Custom Scripts
 
-You can guide Claude with specific instructions:
-
+**Request:**
 ```
-Generate a DocType following these rules:
-- Use snake_case for field names
-- Add docstrings to all methods
-- Include comprehensive error handling
-- Add unit test structure
+Add client-side script to Order:
+- When item is selected, automatically fetch its price
+- Calculate total amount as sum of all items
+- Show warning if total exceeds customer's credit limit
 ```
 
-### Batch Operations
+### 2. Server Scripts
 
-Generate multiple related items:
-
+**Request:**
 ```
-Create these DocTypes:
-1. Customer
-2. Order
-3. Order Item
-4. Payment
-
-Link them appropriately with proper relationships.
+Add server-side logic to Invoice:
+- Before saving, validate tax calculations
+- After saving, update customer's outstanding balance
+- On cancel, reverse all ledger entries
 ```
 
-### Code Review
+### 3. Permissions
 
-Ask Claude to review existing code:
+**Request:**
+```
+Set permissions for Order DocType:
+- Sales User: Can create and read own orders
+- Sales Manager: Can read, write, delete all orders
+- Accounts User: Can only read submitted orders
+- Customer: Can read only their own orders (portal access)
+```
+
+### 4. Reports and Dashboards
+
+**Request:**
+```
+Create a Sales Dashboard with:
+- Total revenue this month (card)
+- Top 5 customers by revenue (chart)
+- Pending orders count (indicator)
+- Recent order list
+```
+
+## Tips for Success
+
+### 1. Iterate Gradually
+
+Start with basic structure, then add complexity:
+```
+Session 1: Create basic DocTypes
+Session 2: Add validations
+Session 3: Add custom scripts
+Session 4: Configure permissions
+Session 5: Create reports
+```
+
+### 2. Use DocType Sessions
+
+When you need to modify a specific DocType:
+1. Click on it in the right sidebar
+2. Chat specifically about that DocType
+3. All context is preserved for that DocType
+
+### 3. Review Before Applying
+
+Always check:
+- File paths are correct
+- No duplicate operations
+- Related DocType mentioned correctly
+- Field names follow conventions (snake_case)
+
+### 4. Verify After Applying
+
+Use the Verify button to:
+- Confirm all files were created
+- Check for missing files
+- Ensure proper structure
+
+### 5. Handle Errors Gracefully
+
+If something fails:
+1. Read the error message carefully
+2. Go back to the relevant DocType session
+3. Ask Claude to fix the issue
+4. Apply changes again
+
+## Common Patterns
+
+### Creating Master DocTypes
 
 ```
-Review this code and suggest improvements:
-[paste your code]
+Create a [Name] DocType as a master with:
+- Name field (required, unique)
+- Description (Text)
+- Is Active (Check, default true)
+- Standard naming (autoname: field:name)
 ```
 
-## Next Steps
+### Creating Transaction DocTypes
 
-- Explore the [API Documentation](API_DOCS.md)
-- Read [Contributing Guidelines](CONTRIBUTING.md)
-- Check out [Example Projects](EXAMPLES.md)
+```
+Create a [Name] DocType as a transaction with:
+- Naming series (format: PREFIX-.YYYY.-.#####)
+- Date field (default: today)
+- Status (Select: Draft, Submitted, Cancelled)
+- Enable workflow
+- Track changes
+```
+
+### Creating Child Tables
+
+```
+Create a child table [Name] with:
+- Parent DocType: [ParentName]
+- Fields: [list fields]
+- No permissions (inherited from parent)
+- No naming
+```
+
+## Troubleshooting
+
+### Issue: DocType Not Created
+
+**Solution:**
+- Check if files were created (Verify button)
+- Look for error messages in the console
+- Ensure app path is correct in settings
+- Try running `bench migrate` manually
+
+### Issue: Fields Not Showing
+
+**Solution:**
+- Clear cache (`bench clear-cache`)
+- Reload the form
+- Check field properties (hidden, read_only)
+- Verify field names are unique
+
+### Issue: Validation Not Working
+
+**Solution:**
+- Check Python syntax in the validation code
+- Ensure validation is in the correct method
+- Look at error logs (`bench console`)
+- Test validation conditions
+
+## Best Practices Summary
+
+1. ✅ Be specific and detailed
+2. ✅ Use proper field types
+3. ✅ Specify validations clearly
+4. ✅ Request complete features
+5. ✅ Review before applying
+6. ✅ Verify after applying
+7. ✅ Use DocType sessions for refinement
+8. ✅ Iterate gradually
+9. ✅ Keep conversations organized
+10. ✅ Test thoroughly after creation
 
 ## Getting Help
 
-- Check the FAQ section
-- Search existing sessions
-- Contact support
-- Join community forum
+If you encounter issues:
 
-Remember: Claude is your AI pair programmer. The more context you provide, the better code you'll get!
+1. **Check the logs**: Look at Frappe error logs
+2. **Review Claude's response**: Make sure you understood correctly
+3. **Ask for clarification**: Go back and ask Claude to explain
+4. **Start a new session**: If things get messy
+5. **Manual fixes**: You can always edit files manually
+
+## Remember
+
+- Claude is a helpful assistant, but review all code
+- Test in development environment first
+- Keep backups of your app
+- Document your customizations
+- Follow Frappe best practices
+
+---
+
+Happy app building! 🚀

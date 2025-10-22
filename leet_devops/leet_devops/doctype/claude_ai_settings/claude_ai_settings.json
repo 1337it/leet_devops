@@ -1,0 +1,96 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2024-01-01 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "api_settings_section",
+  "api_key",
+  "model",
+  "max_tokens",
+  "column_break_1",
+  "temperature",
+  "working_app_section",
+  "working_app_name",
+  "app_path"
+ ],
+ "fields": [
+  {
+   "fieldname": "api_settings_section",
+   "fieldtype": "Section Break",
+   "label": "API Settings"
+  },
+  {
+   "fieldname": "api_key",
+   "fieldtype": "Password",
+   "label": "Claude API Key",
+   "reqd": 1
+  },
+  {
+   "default": "claude-sonnet-4-5-20250929",
+   "fieldname": "model",
+   "fieldtype": "Select",
+   "label": "Model",
+   "options": "claude-sonnet-4-5-20250929\nclaude-opus-4-1-20250514\nclaude-4-20250514"
+  },
+  {
+   "default": "4096",
+   "fieldname": "max_tokens",
+   "fieldtype": "Int",
+   "label": "Max Tokens"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0.7",
+   "fieldname": "temperature",
+   "fieldtype": "Float",
+   "label": "Temperature"
+  },
+  {
+   "fieldname": "working_app_section",
+   "fieldtype": "Section Break",
+   "label": "Working App Configuration"
+  },
+  {
+   "fieldname": "working_app_name",
+   "fieldtype": "Data",
+   "label": "Working App Name",
+   "reqd": 1
+  },
+  {
+   "description": "Full path to the app directory",
+   "fieldname": "app_path",
+   "fieldtype": "Data",
+   "label": "App Path",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2024-01-01 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Leet Devops",
+ "name": "Claude AI Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

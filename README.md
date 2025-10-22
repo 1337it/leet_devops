@@ -1,309 +1,272 @@
-# Leet DevOps
+# Leet Devops
 
-AI-powered DocType and Function Generator for Frappe Framework
-
-## Overview
-
-Leet DevOps is a Frappe custom app that leverages Claude AI to help developers generate DocTypes, functions, reports, and other artifacts for Frappe applications. It features an intelligent chat interface with session management, automatic child session creation, and streaming responses.
+AI-powered Frappe app generator using Claude API. Create and modify Frappe applications through natural conversation with Claude AI.
 
 ## Features
 
-### 1. **⚡ Automatic Code Application**
-- **One-Click Apply**: Generated code applied automatically
-- **No Manual Copy-Paste**: Files created in correct locations
-- **Auto-Migration**: Database changes applied automatically
-- **Preview Before Apply**: See what will change
-- **Zero Configuration**: Works out of the box
-
-### 2. **Settings Management**
-- Configure Claude API key
-- Set token limits and temperature
-- Define default target app
-- Select AI model (Claude Sonnet 4, Opus 4, etc.)
-
-### 2. **Intelligent Chat Interface**
-- Real-time streaming responses from Claude AI
-- Context-aware conversations
-- Session-based chat history
-- Automatic code generation
-
-### 3. **Session Management**
-- **Main Sessions**: Overall project planning and discussion
-- **Child Sessions**: Automatically created for specific artifacts
-  - DocType sessions
-  - Function/API sessions
-  - Report sessions
-  - Page sessions
-
-### 4. **Context Preservation**
-- Each session maintains its own context
-- Child sessions inherit parent session context
-- Automatic embedding of relevant information
-
-### 5. **Artifact Generation**
-- Complete DocType generation (JSON, Python, JS)
-- API endpoint creation
-- Report generation
-- Custom page creation
-- Proper file structure following Frappe conventions
+- **AI-Powered Development**: Chat with Claude AI to design and develop Frappe apps
+- **Session Management**: Organize development work in sessions with conversation history
+- **DocType-Specific Chats**: Each DocType gets its own chat session with context-aware conversations
+- **Automated File Operations**: Automatically creates DocType files (JSON, Python) in the correct structure
+- **Change Preview**: See exactly what files will be created/modified before applying
+- **File Verification**: Verify that all expected files were created successfully
+- **Automatic Migration**: Runs `bench migrate` automatically after applying changes
 
 ## Installation
 
-### Prerequisites
-- Frappe Framework (v14 or later)
-- Python 3.8+
-- Anthropic API key
+1. Navigate to your Frappe bench directory:
+```bash
+cd /path/to/frappe-bench
+```
 
-### Steps
+2. Get the app from the repository (or copy the app folder):
+```bash
+bench get-app /path/to/leet_devops
+```
 
-1. **Get the app:**
-   ```bash
-   cd frappe-bench
-   bench get-app https://github.com/your-repo/leet_devops.git
-   ```
+3. Install the app on your site:
+```bash
+bench --site your-site install-app leet_devops
+```
 
-2. **Install on site:**
-   ```bash
-   bench --site your-site.local install-app leet_devops
-   ```
-
-3. **Install Python dependencies:**
-   ```bash
-   bench pip install anthropic
-   ```
-
-4. **Restart bench:**
-   ```bash
-   bench restart
-   ```
+4. Restart bench:
+```bash
+bench restart
+```
 
 ## Configuration
 
-1. Navigate to **DevOps Settings** (Settings > DevOps Settings)
+1. Navigate to **Leet Devops > Settings > Claude API Settings**
 
 2. Configure the following:
-   - **Claude API Key**: Your Anthropic API key
+   - **Claude API Key**: Your Anthropic API key (required)
+   - **API Endpoint**: Default is `https://api.anthropic.com/v1/messages`
+   - **Model**: Choose from Claude Sonnet 4.5, Opus 4.1, or Claude 4
    - **Max Tokens**: Maximum tokens per response (default: 4096)
-   - **Model**: Select AI model (Claude Sonnet 4.5 recommended)
-   - **Temperature**: Response creativity (0-2, default: 1)
-   - **Target App Name**: Default Frappe app to generate code for
-   - **App Path**: Full path to the target app directory
+   - **Temperature**: Controls randomness (default: 0.7)
+   - **Default App Name**: Your app name (e.g., `my_custom_app`)
+   - **Apps Path**: Full path to your Frappe apps directory (e.g., `/home/frappe/frappe-bench/apps`)
+
+3. Save the settings.
 
 ## Usage
 
-### Creating a New Session
+### Starting a New Development Session
 
-1. Go to **Chat Interface** page
-2. Click **"New Session"**
-3. Enter:
-   - Session title
-   - Target app name
-   - Session type (Main for overall planning)
+1. Go to **Leet Devops > Development > App Development Session**
+2. Click **New**
+3. Fill in:
+   - **App Name**: Name of your Frappe app (snake_case)
+   - **App Title**: Display title (optional)
+   - **Description**: Brief description of what your app does
+4. Save the session
 
-### Chatting with Claude
+### Chatting with Claude AI
 
-1. Type your request in the chat input
-2. Press **Ctrl+Enter** or click **Send**
-3. Watch as Claude streams the response in real-time
-4. Click **Preview** to see what will be created
-5. Click **Apply Changes** to automatically implement
-6. Refresh browser to see your new DocType/Function!
+1. Open your session
+2. Click on the session name to access the **App Development Chat** interface
+3. You'll see:
+   - Session information at the top
+   - Tabs for Main App and each DocType
+   - Chat interface
+   - Action buttons
 
-Claude will automatically:
-- Analyze your requirements
-- Create child sessions for specific artifacts
-- Generate complete, production-ready code
-- Structure code for automatic application
-- Provide implementation instructions
+### Main App Chat
 
-**No more copy-pasting code!** Just click "Apply Changes" and it's done.
+When on the "Main App" tab, you can:
+- Discuss app architecture and design
+- Ask Claude to create new DocTypes
+- Get suggestions for app structure
+- Request explanations of Frappe concepts
 
-### Working with Child Sessions
-
-1. Click **"Child Sessions"** button in the chat header
-2. View automatically created child sessions
-3. Open specific child sessions to focus on individual artifacts
-4. Each child session maintains focused context on its specific task
-
-### Example Workflows
-
-#### Creating a Custom DocType
-
-1. Create a main session: "Customer Portal Development"
-2. Ask Claude: "I need a Customer Feedback DocType with fields for rating, comments, and category"
-3. Claude will:
-   - Create a child session for "Customer Feedback DocType"
-   - Generate the JSON definition
-   - Create Python controller with validation
-   - Add JavaScript for client-side logic
-4. Click **Preview** to review changes
-5. Click **Apply Changes** 
-6. Wait 30 seconds for migration
-7. Refresh browser
-8. Your DocType is ready! Go to Customer Feedback list
-
-**Total time: ~1 minute from idea to working DocType**
-
-#### Building an API
-
-1. In your session, ask: "Create an API to calculate shipping costs based on weight and destination"
-2. Claude generates:
-   - Complete Python function with @frappe.whitelist()
-   - Error handling
-   - Documentation
-   - Usage examples
-
-## App Structure
-
+Example prompts:
 ```
-leet_devops/
-├── leet_devops/
-│   ├── api/
-│   │   └── claude_api.py          # Claude API integration
-│   ├── config/
-│   │   └── desktop.py             # Workspace configuration
-│   ├── leet_devops/               # Main module
-│   │   ├── doctype/
-│   │   │   ├── devops_settings/   # Settings DocType
-│   │   │   ├── generation_session/ # Session management
-│   │   │   └── chat_message/      # Chat messages
-│   │   └── page/
-│   │       └── chat_interface/    # Chat UI
-│   └── public/
-│       ├── css/
-│       │   └── leet_devops.css   # Styles
-│       └── js/
-│           └── leet_devops.js    # Frontend logic
-├── requirements.txt
-└── setup.py
+"Create a Customer Management DocType with fields for name, email, phone, and address"
+
+"I need a task tracking system with DocTypes for Projects, Tasks, and Time Logs"
+
+"Explain how to create a relationship between two DocTypes"
 ```
 
-## DocTypes
+### DocType-Specific Chat
 
-### DevOps Settings (Single)
-- API configuration
-- Model settings
-- Default app configuration
+Once Claude creates a DocType definition:
+1. A new tab appears for that DocType
+2. Click the tab to enter DocType-specific chat
+3. The conversation is now focused on that specific DocType
 
-### Generation Session
-- Session metadata
-- Context storage
-- Parent-child relationships
-- Artifact tracking
+Example prompts in DocType chat:
+```
+"Add a field for customer rating from 1-5"
 
-### Chat Message
-- Message content
-- Sender information
-- Timestamps
-- Token usage tracking
+"Make the email field mandatory"
+
+"Add a link field to connect this to the Project DocType"
+
+"Change the status field options to include 'Pending', 'In Progress', 'Completed'"
+```
+
+### Applying Changes
+
+1. After Claude provides DocType definitions, click **Apply Changes**
+2. Review the changes that will be made
+3. Confirm to proceed
+4. The app will:
+   - Create necessary directories
+   - Generate JSON and Python files for each DocType
+   - Run `bench migrate` automatically
+   - Log all file operations
+
+### Verifying Files
+
+1. Click **Verify Files** to check if all expected files were created
+2. View the verification results showing:
+   - Which files exist
+   - File sizes
+   - Any missing files
+
+## Workflow Example
+
+Here's a complete workflow example:
+
+1. **Create Session**
+   - Name: `library_management`
+   - Description: "A library management system"
+
+2. **Main Chat - Design the App**
+   ```
+   User: "Create a library management system with DocTypes for Books, Members, and Transactions"
+   
+   Claude: [Provides architectural overview and creates Book DocType definition]
+   ```
+
+3. **Switch to Book DocType Tab**
+   ```
+   User: "Add fields for ISBN, author, publisher, and publication year"
+   
+   Claude: [Provides updated DocType with new fields]
+   ```
+
+4. **Apply Changes**
+   - Click "Apply Changes"
+   - Files are created automatically
+   - Migration runs
+
+5. **Verify**
+   - Click "Verify Files"
+   - Confirm all files were created successfully
+
+6. **Continue Development**
+   - Switch to other DocType tabs or main chat
+   - Request modifications
+   - Apply and verify again
+
+## File Structure
+
+The app creates the following structure:
+
+```
+your_app/
+└── your_app/
+    ├── hooks.py
+    ├── __init__.py
+    └── doctype/
+        └── your_doctype/
+            ├── your_doctype.json
+            ├── your_doctype.py
+            └── __init__.py
+```
+
+## Features in Detail
+
+### Session Management
+- **Conversation History**: All conversations are saved per session
+- **Multiple Sessions**: Work on different apps simultaneously
+- **Status Tracking**: Monitor session status (Active, Pending Changes, Completed, Error)
+
+### DocType Sessions
+- **Isolated Context**: Each DocType has its own conversation thread
+- **Definition Storage**: DocType JSON is stored in the session
+- **Status Tracking**: Track which DocTypes are Draft, Ready, or Applied
+
+### File Operations
+- **Automatic Directory Creation**: Creates proper Frappe directory structure
+- **JSON Generation**: Creates DocType JSON with proper formatting
+- **Python Controller**: Generates basic Python controller classes
+- **Init Files**: Creates required __init__.py files
+- **Change Logging**: All file operations are logged in File Change Log
+
+### Safety Features
+- **Preview Before Apply**: See what will change before applying
+- **Confirmation Dialogs**: Confirm before making file system changes
+- **Error Handling**: Graceful error handling with detailed messages
+- **Verification System**: Verify files after creation
 
 ## API Methods
 
-### Chat & Session Management
+Available whitelisted methods:
 
-### `claude_api.send_message`
-Send a message to Claude with streaming support
-- **Args**: session_id, message, stream
-- **Returns**: Message ID and content
+- `send_message_to_claude`: Send messages to Claude API
+- `parse_doctype_from_response`: Extract DocType JSON from responses
+- `create_doctype_session`: Create new DocType session
+- `apply_changes`: Apply pending changes to file system
+- `verify_files`: Verify file creation
+- `run_migrate`: Run bench migrate
+- `get_app_list`: Get list of installed apps
 
-### `claude_api.create_session`
-Create a new generation session
-- **Args**: title, target_app, session_type, parent_session
-- **Returns**: Session ID
+## Limitations
 
-### `claude_api.get_child_sessions`
-Get all child sessions for a parent
-- **Args**: parent_session_id
-- **Returns**: List of child sessions
-
-### `claude_api.get_session_messages`
-Get all messages in a session
-- **Args**: session_id
-- **Returns**: List of messages
-
-### Automatic Code Application
-
-### `code_applicator.parse_and_extract_artifacts`
-Extract code artifacts from a message
-- **Args**: message_id
-- **Returns**: List of extracted artifacts
-
-### `code_applicator.preview_artifacts`
-Preview what will be applied without applying
-- **Args**: message_id
-- **Returns**: List of previews
-
-### `code_applicator.apply_artifacts`
-Apply extracted artifacts to the target app
-- **Args**: session_id, message_id, artifacts_json
-- **Returns**: Application results
-
-## Best Practices
-
-1. **Use Clear Session Titles**: Make them descriptive for easy navigation
-2. **Leverage Context**: Claude remembers the conversation within each session
-3. **Review Generated Code**: Always review and test generated artifacts
-4. **Utilize Child Sessions**: Let Claude automatically organize work into focused sessions
-5. **Set Appropriate Token Limits**: Higher limits for complex generations
-6. **Monitor API Usage**: Keep track of your Anthropic API usage
+- Requires valid Claude API key
+- File operations require proper permissions on apps directory
+- bench commands must be available in the system path
+- Currently supports DocType creation only (pages, reports, etc. coming soon)
 
 ## Troubleshooting
 
-### Streaming Not Working
-- Check browser console for WebSocket errors
-- Ensure Redis is running (required for realtime)
-- Verify API key is correct
+### API Key Issues
+- Verify your Claude API key in settings
+- Check API key has proper permissions
+- Ensure you have API credits available
 
-### No Response from Claude
-- Check DevOps Settings has valid API key
-- Verify network connectivity
-- Check Anthropic API status
+### File Creation Issues
+- Verify Apps Path is correct in settings
+- Check directory permissions
+- Ensure the target app directory exists
 
-### Child Sessions Not Created
-- Ensure main session is active
-- Check that keywords (doctype, function, etc.) are mentioned
-- Review session context
+### Migration Issues
+- Check bench is installed and accessible
+- Verify you're in the correct environment
+- Check error logs in File Change Log
 
-## Development
+## Future Enhancements
 
-### Running Tests
-```bash
-bench --site your-site.local run-tests --app leet_devops
-```
-
-### Contributing
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-## Security
-
-- API keys are stored encrypted in the database
-- Only System Manager role has access by default
-- All API calls are logged for audit purposes
+- Support for creating Pages
+- Support for creating Reports
+- Support for Web Forms
+- Code file modifications (not just DocTypes)
+- Client Script generation
+- Server Script integration
+- Workflow creation
+- Print Format generation
 
 ## License
 
-MIT License
+MIT
+
+## Credits
+
+Developed using:
+- Frappe Framework
+- Claude API by Anthropic
+- Python 3.6+
 
 ## Support
 
 For issues and questions:
-- GitHub Issues: [Your repo issues page]
-- Email: info@leetdevops.com
+1. Check the File Change Log for error details
+2. Review conversation history in sessions
+3. Verify configuration in Claude API Settings
 
-## Credits
+---
 
-Built with:
-- [Frappe Framework](https://frappeframework.com/)
-- [Anthropic Claude](https://www.anthropic.com/)
-
-## Version History
-
-### 0.0.1 (Initial Release)
-- Basic chat interface
-- Session management
-- Claude API integration with streaming
-- Automatic child session creation
-- DevOps Settings configuration
+Built with ❤️ for the Frappe community
