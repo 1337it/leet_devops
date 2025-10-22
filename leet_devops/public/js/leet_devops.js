@@ -214,29 +214,41 @@ leet_devops.ChatInterface = class {
         const me = this;
         
         if (!previews || previews.length === 0) {
-            frappe.msgprint(__('No artifacts found to apply'));
+            frappe.msgprint(__('No artifacts found to apply. Make sure Claude\'s response contains code blocks with proper formatting.'));
             return;
         }
         
         let html = '<div class="artifacts-preview">';
-        html += '<p class="text-muted">The following changes will be applied:</p>';
+        html += `<p class="text-muted">Found ${previews.length} artifact(s) to apply:</p>`;
         
         previews.forEach(function(preview, index) {
+            const badge_color = preview.type === 'doctype' ? 'primary' : 
+                               preview.type === 'function' ? 'success' : 'info';
+            
             html += `
                 <div class="artifact-preview-item">
                     <div class="preview-header">
-                        <span class="badge badge-primary">${preview.type}</span>
-                        <strong>${preview.name}</strong>
+                        <span class="badge badge-${badge_color}">${preview.type}</span>
+                        <strong>${preview.name || 'Unnamed'}</strong>
                     </div>
                     <div class="preview-body">
                         <p>${preview.description}</p>
                         <small class="text-muted">Path: ${preview.path}</small>
+                        ${preview.code_length ? `<br><small class="text-muted">Code size: ${preview.code_length} characters</small>` : ''}
+                        ${preview.source ? `<br><small class="text-muted">Extraction: ${preview.source}</small>` : ''}
                     </div>
                 </div>
             `;
         });
         
         html += '</div>';
+        
+        html += `
+            <div class="mt-3 alert alert-info">
+                <i class="fa fa-info-circle"></i> 
+                <strong>Tip:</strong> If expected files are missing, ensure Claude's code blocks are properly formatted with language tags (e.g., \`\`\`json, \`\`\`python).
+            </div>
+        `;
         
         const d = new frappe.ui.Dialog({
             title: __('Preview Changes'),
@@ -247,6 +259,7 @@ leet_devops.ChatInterface = class {
                     options: html
                 }
             ],
+            size: 'large',
             primary_action_label: __('Apply Changes'),
             primary_action: function() {
                 d.hide();
@@ -278,6 +291,10 @@ leet_devops.ChatInterface = class {
                     }
                     .artifact-preview-item .preview-body p {
                         margin: 5px 0;
+                    }
+                    .artifact-preview-item .preview-body small {
+                        display: block;
+                        margin-top: 3px;
                     }
                 </style>
             `);
@@ -409,7 +426,8 @@ leet_devops.ChatInterface = class {
         if (success_count > 0) {
             html += `
                 <div class="alert alert-success">
-                    <strong>Success!</strong> Applied ${success_count} artifact(s).
+                    <i class="fa fa-check-circle"></i>
+                    <strong>Success!</strong> Applied ${success_count} artifact(s) successfully.
                 </div>
             `;
         }
@@ -417,22 +435,32 @@ leet_devops.ChatInterface = class {
         if (error_count > 0) {
             html += `
                 <div class="alert alert-warning">
+                    <i class="fa fa-exclamation-triangle"></i>
                     <strong>Warning:</strong> ${error_count} artifact(s) could not be applied.
                 </div>
             `;
         }
         
         html += '<div class="results-list">';
+        html += '<h5 class="mt-2 mb-2">Details:</h5>';
+        
         results.forEach(function(result) {
             const icon = result.success ? 'fa-check-circle text-success' : 'fa-times-circle text-danger';
+            const status_class = result.success ? 'success' : 'error';
+            
             html += `
-                <div class="result-item">
+                <div class="result-item ${status_class}">
                     <i class="fa ${icon}"></i>
                     <div class="result-details">
-                        <strong>${result.type || 'Unknown'}</strong>
-                        ${result.name ? `<span>: ${result.name}</span>` : ''}
-                        <p class="text-muted small">${result.message || result.error || ''}</p>
-                        ${result.file ? `<small class="text-muted">${result.file}</small>` : ''}
+                        <div class="result-header">
+                            <strong>${result.type || 'Unknown'}</strong>
+                            ${result.name ? `<span class="result-name">: ${result.name}</span>` : ''}
+                            ${result.artifact_type ? `<span class="badge badge-secondary">${result.artifact_type}</span>` : ''}
+                        </div>
+                        <p class="result-message ${result.success ? 'text-muted' : 'text-danger'}">
+                            ${result.message || result.error || 'No details'}
+                        </p>
+                        ${result.file ? `<small class="result-file"><i class="fa fa-file-o"></i> ${result.file}</small>` : ''}
                     </div>
                 </div>
             `;
@@ -440,14 +468,15 @@ leet_devops.ChatInterface = class {
         html += '</div>';
         
         html += `
-            <div class="mt-3">
-                <p class="text-muted">
-                    <i class="fa fa-info-circle"></i> 
-                    Changes have been applied. Migration is running in the background.
-                </p>
-                <p class="text-muted small">
-                    You may need to refresh your browser to see the new DocTypes.
-                </p>
+            <div class="mt-3 alert alert-info">
+                <i class="fa fa-info-circle"></i> 
+                <strong>Next Steps:</strong>
+                <ul class="mb-0">
+                    <li>Migration is running in the background</li>
+                    <li>Check Frappe error logs if any failures occurred</li>
+                    <li>Refresh your browser to see new DocTypes</li>
+                    ${error_count > 0 ? '<li class="text-warning">Review failed items and fix code formatting if needed</li>' : ''}
+                </ul>
             </div>
         `;
         
@@ -455,6 +484,7 @@ leet_devops.ChatInterface = class {
         
         const d = new frappe.ui.Dialog({
             title: __('Apply Results'),
+            size: 'large',
             fields: [
                 {
                     fieldtype: 'HTML',
@@ -483,21 +513,48 @@ leet_devops.ChatInterface = class {
                     .result-item {
                         display: flex;
                         gap: 10px;
-                        padding: 10px;
-                        border-bottom: 1px solid #e5e5e5;
+                        padding: 12px;
+                        border: 1px solid #e5e5e5;
+                        border-radius: 4px;
+                        margin-bottom: 8px;
+                        background: #fff;
+                    }
+                    .result-item.success {
+                        border-left: 3px solid #28a745;
+                    }
+                    .result-item.error {
+                        border-left: 3px solid #dc3545;
+                        background: #fff5f5;
                     }
                     .result-item:last-child {
-                        border-bottom: none;
+                        margin-bottom: 0;
                     }
                     .result-item i {
-                        font-size: 18px;
+                        font-size: 20px;
                         margin-top: 2px;
                     }
                     .result-details {
                         flex: 1;
                     }
-                    .result-details p {
+                    .result-header {
+                        display: flex;
+                        gap: 8px;
+                        align-items: center;
+                        margin-bottom: 5px;
+                    }
+                    .result-name {
+                        color: #666;
+                    }
+                    .result-message {
                         margin: 5px 0;
+                        font-size: 13px;
+                    }
+                    .result-file {
+                        display: block;
+                        margin-top: 5px;
+                        font-family: monospace;
+                        font-size: 11px;
+                        color: #666;
                     }
                 </style>
             `);
@@ -506,10 +563,12 @@ leet_devops.ChatInterface = class {
         d.show();
         
         // Show success notification
-        frappe.show_alert({
-            message: __('Changes applied successfully!'),
-            indicator: 'green'
-        }, 5);
+        if (success_count > 0) {
+            frappe.show_alert({
+                message: __(`Successfully applied ${success_count} artifact(s)!`),
+                indicator: 'green'
+            }, 5);
+        }
     }
 
     remove_streaming_placeholder() {
